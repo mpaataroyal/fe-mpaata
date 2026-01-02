@@ -6,19 +6,19 @@ import Link from 'next/link';
 import { 
   Menu, X, ChevronRight, Star, Calendar, User, Search, MapPin, 
   Phone, Mail, Instagram, Facebook, Twitter, Utensils, Wifi, Car, Monitor,
-  Loader2, ArrowRight 
+  Loader2, ArrowRight, LogOut, CreditCard 
 } from 'lucide-react';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from '@/libs/firebase';
 import { api } from '@/libs/apiAgent';
 
 // --- Design Assets ---
 const IMAGES = {
-  hero: "/hero_bg.png",
+  hero: "https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?q=80&w=2070&auto=format&fit=crop",
   pool: "https://images.unsplash.com/photo-1576013551627-0cc20b96c2a7?q=80&w=2070&auto=format&fit=crop",
   // Fallback map image if API key fails
-  mapPlaceholder: "/standard_room.JPG", 
-  roomPlaceholder: "/standard_room.JPG"
+  mapPlaceholder: "https://images.unsplash.com/photo-1524661135-423995f22d0b?q=80&w=2074&auto=format&fit=crop", 
+  roomPlaceholder: "https://images.unsplash.com/photo-1618773928121-c32242e63f39?q=80&w=2070&auto=format&fit=crop"
 };
 
 // --- Components ---
@@ -43,15 +43,28 @@ const Button = ({ children, type = 'default', className = '', ...props }) => {
 const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const router = useRouter();
   const [user, setUser] = useState(null);
+  const [userRole, setUserRole] = useState('client'); 
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 50);
     window.addEventListener('scroll', handleScroll);
     
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
+      if (currentUser) {
+        try {
+          const tokenResult = await currentUser.getIdTokenResult();
+          setUserRole(tokenResult.claims?.role || 'client');
+        } catch (error) {
+          console.error("Failed to fetch user role", error);
+          setUserRole('client');
+        }
+      } else {
+        setUserRole('client');
+      }
     });
 
     return () => {
@@ -60,17 +73,32 @@ const Navbar = () => {
     };
   }, []);
 
-  const handleBookStay = () => {
-    if (user) {
-      router.push('/dashboard/bookings');
-    } else {
-      router.push('/login'); 
-    }
+  const handleLogout = async () => {
+    await signOut(auth);
+    setUser(null);
+    setDropdownOpen(false);
+    router.refresh();
+  };
+
+  const isAdmin = ['admin', 'super_admin', 'manager'].includes(userRole);
+
+  const getDashboardLink = () => {
+    return isAdmin ? '/admin/dashboard' : '/my';
+  };
+
+  const navigateToDashboard = (tab) => {
+    router.push('/my'); 
+    setDropdownOpen(false);
+  };
+
+  const handleLogin = () => {
+    router.push('/my'); 
   };
 
   return (
     <nav className={`fixed w-full z-50 transition-all duration-500 ${scrolled ? 'bg-white/95 backdrop-blur-md shadow-sm py-4 text-[#0F2027]' : 'bg-transparent py-6 text-white'}`}>
       <div className="max-w-7xl mx-auto px-6 flex justify-between items-center">
+        {/* Logo */}
         <Link href="/" className="flex items-center gap-2">
           <div className={`w-8 h-8 border-2 flex items-center justify-center ${scrolled ? 'border-[#0F2027]' : 'border-white'}`}>
             <span className={`font-serif text-xl ${scrolled ? 'text-[#0F2027]' : 'text-white'}`}>M</span>
@@ -78,24 +106,111 @@ const Navbar = () => {
           <span className="font-serif text-xl md:text-2xl tracking-widest font-semibold uppercase">MPAATA</span>
         </Link>
 
+        {/* Desktop Links */}
         <div className="hidden md:flex items-center gap-8 font-sans text-xs tracking-[0.15em] uppercase font-medium">
-          <Link href="/" className="hover:text-[#D4AF37] transition-colors">Home</Link>
-          <Link href="/rooms" className="hover:text-[#D4AF37] transition-colors">Royal Suits</Link>
-          <Button onClick={handleBookStay} type={scrolled ? 'primary' : 'ghost'} className="ml-4 uppercase text-xs px-6 py-2.5">
-            Book Royal Stay
-          </Button>
+          <Link href="/" className={`hover:text-[#D4AF37] transition-colors ${scrolled ? 'text-[#0F2027]' : 'text-white'}`}>Home</Link>
+          <Link href="/rooms" className={`hover:text-[#D4AF37] transition-colors ${scrolled ? 'text-[#0F2027]' : 'text-white'}`}>Royal Suits</Link>
+          
+          {user ? (
+            isAdmin ? (
+              // ADMIN VIEW
+              <Button 
+                onClick={() => router.push('/admin/dashboard')}
+                type={scrolled ? 'primary' : 'ghost'} 
+                className="ml-4 uppercase text-xs px-6 py-2.5"
+              >
+                Access Dashboard
+              </Button>
+            ) : (
+              // CLIENT VIEW
+              <div className="relative ml-4">
+                <button 
+                  onClick={() => setDropdownOpen(!dropdownOpen)} 
+                  className={`flex items-center gap-2 focus:outline-none hover:opacity-80 transition-opacity ${scrolled ? 'text-[#0F2027]' : 'text-white'}`}
+                >
+                  {user.photoURL ? (
+                    <img src={user.photoURL} alt="Profile" className="w-8 h-8 rounded-full border border-gray-200 object-cover" />
+                  ) : (
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${scrolled ? 'bg-[#0F2027] text-[#D4AF37]' : 'bg-white text-[#0F2027]'}`}>
+                      {user.displayName?.[0] || 'U'}
+                    </div>
+                  )}
+                  <span className="normal-case tracking-normal font-bold">{user.displayName?.split(' ')[0]}</span>
+                  <ChevronRight size={14} className={`transform transition-transform ${dropdownOpen ? 'rotate-90' : ''}`} />
+                </button>
+
+                {/* Dropdown */}
+                {dropdownOpen && (
+                  <div className="absolute right-0 mt-3 w-48 bg-white rounded-[2px] shadow-xl border border-gray-100 py-1 animate-fade-in-up origin-top-right text-[#0F2027]">
+                    <div className="px-4 py-2 border-b border-gray-50">
+                      <p className="text-[10px] text-gray-400 uppercase tracking-wider">Signed in as</p>
+                      <p className="text-sm font-bold truncate">{user.email}</p>
+                    </div>
+                    <button onClick={() => navigateToDashboard('bookings')} className="w-full text-left px-4 py-2 text-xs font-bold text-gray-600 hover:bg-gray-50 hover:text-[#0F2027] flex items-center gap-2">
+                      <Calendar size={14} /> My Bookings
+                    </button>
+                    <button onClick={() => navigateToDashboard('payments')} className="w-full text-left px-4 py-2 text-xs font-bold text-gray-600 hover:bg-gray-50 hover:text-[#0F2027] flex items-center gap-2">
+                      <CreditCard size={14} /> My Payments
+                    </button>
+                    <div className="border-t border-gray-50 mt-1">
+                      <button onClick={handleLogout} className="w-full text-left px-4 py-2 text-xs font-bold text-red-500 hover:bg-red-50 flex items-center gap-2">
+                        <LogOut size={14} /> Sign Out
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          ) : (
+            <div className="flex items-center gap-4 ml-4">
+              <button 
+                onClick={handleLogin}
+                className={`text-xs font-bold uppercase tracking-widest hover:text-[#D4AF37] transition-colors ${scrolled ? 'text-[#0F2027]' : 'text-white'}`}
+              >
+                Login
+              </button>
+              <Button 
+                onClick={handleLogin}
+                type={scrolled ? 'primary' : 'ghost'} 
+                className="uppercase text-xs px-6 py-2.5"
+              >
+                Book Royal Stay
+              </Button>
+            </div>
+          )}
         </div>
 
+        {/* Mobile Toggle */}
         <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="md:hidden">
-          {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          {mobileMenuOpen ? <X size={24} className={scrolled ? "text-[#0F2027]" : "text-white"} /> : <Menu size={24} className={scrolled ? "text-[#0F2027]" : "text-white"} />}
         </button>
       </div>
 
+      {/* Mobile Menu */}
       {mobileMenuOpen && (
-        <div className="absolute top-full left-0 w-full bg-white text-[#0F2027] shadow-xl p-8 flex flex-col gap-6 md:hidden">
+        <div className="absolute top-full left-0 w-full bg-white text-[#0F2027] shadow-xl p-8 flex flex-col gap-6 md:hidden border-t border-gray-100">
           <Link href="/" className="text-lg font-serif border-b border-gray-100 pb-2 hover:text-[#D4AF37]">Home</Link>
           <Link href="/rooms" className="text-lg font-serif border-b border-gray-100 pb-2 hover:text-[#D4AF37]">Royal Suits</Link>
-          <Button onClick={handleBookStay} type="primary" className="w-full mt-4">Book Royal Stay</Button>
+          
+          {user ? (
+            <>
+              <div className="flex items-center gap-3 py-2">
+                <div className="w-8 h-8 rounded-full bg-[#0F2027] text-[#D4AF37] flex items-center justify-center font-bold text-xs">
+                  {user.displayName?.[0] || 'U'}
+                </div>
+                <span className="font-bold">{user.displayName}</span>
+              </div>
+              <Button onClick={() => router.push(getDashboardLink())} type="primary" className="w-full">
+                {isAdmin ? 'Access Dashboard' : 'My Dashboard'}
+              </Button>
+              <button onClick={handleLogout} className="text-left text-red-500 font-bold text-sm">Sign Out</button>
+            </>
+          ) : (
+            <div className="space-y-4 pt-2">
+              <button onClick={handleLogin} className="w-full text-left font-bold uppercase tracking-widest text-xs hover:text-[#D4AF37]">Login</button>
+              <Button onClick={handleLogin} type="primary" className="w-full">Book Royal Stay</Button>
+            </div>
+          )}
         </div>
       )}
     </nav>
@@ -338,8 +453,7 @@ const Amenities = () => {
 
 // --- Location Section ---
 const LocationSection = () => {
-  // Corrected Coordinates for Hoima (31 deg East, not 3)
-  const coordinates = "1.428292,31.359560"; 
+  const coordinates = "1.428292,31.359560"; // Hoima coordinates
   const apiKey = "AIzaSyBp6AeE01WY__gSB8CWZNE-NBRRAF1I9qI"; 
   
   // URL for the static background image
@@ -350,14 +464,12 @@ const LocationSection = () => {
       {/* Background Map Visual */}
       <div className="absolute inset-0 z-0">
           <div className="w-full h-full bg-[#e5e5e5] relative">
-               {/* Use img for better error handling and accessibility */}
                <img 
                  src={staticMapUrl} 
                  alt="Location Map of MPAATA Empire" 
                  className="absolute inset-0 w-full h-full object-cover opacity-60 grayscale"
                  onError={(e) => { e.target.src = IMAGES.mapPlaceholder; }} // Fallback if API key fails
                />
-               {/* Reduced gradient opacity to make map more visible */}
                <div className="absolute inset-0 bg-gradient-to-r from-white/70 via-white/30 to-transparent"></div>
           </div>
       </div>

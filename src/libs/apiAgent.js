@@ -1,11 +1,10 @@
-// libs/apiAgent.js
 import axios from 'axios';
 import { auth } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth'; // Import this
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ||
-  'http://localhost:3000/api/v1';
+  'https://simple-maggot-expert.ngrok-free.app/api/v1';
 
 // Create axios instance
 const apiAgent = axios.create({
@@ -159,6 +158,10 @@ export const api = {
       const response = await apiAgent.get('/bookings', { params });
       return response.data;
     },
+    getMine: async () => {
+      const response = await apiAgent.get('/bookings/me');
+      return response.data;
+    },
     getById: async (id) => {
       const response = await apiAgent.get(`/bookings/${id}`);
       return response.data;
@@ -187,6 +190,10 @@ export const api = {
   payments: {
     getAll: async (params) => {
       const response = await apiAgent.get('/payments', { params });
+      return response.data;
+    },
+    getMine: async () => {
+      const response = await apiAgent.get('/payments/me');
       return response.data;
     },
     getById: async (id) => {

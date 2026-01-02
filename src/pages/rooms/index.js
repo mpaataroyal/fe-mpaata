@@ -1,469 +1,479 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { 
-  Search, Plus, Edit2, Trash2, X, RefreshCw, 
-  Home, Banknote, CheckCircle, AlertTriangle, Loader2 // <--- Changed DollarSign to Banknote
+  Wifi, Tv, Wind, Maximize, CheckCircle, 
+  Menu, X, Phone, Mail, MapPin, ChevronRight, Star, 
+  Calendar, User, Filter, ArrowRight, Loader2, Search,
+  LogOut, CreditCard
 } from 'lucide-react';
-import DashboardLayout from '@/layout';
-import { api } from '@/libs/apiAgent'; 
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { auth } from '@/libs/firebase';
+import { api } from '@/libs/apiAgent';
 
-const AMENITY_OPTIONS = [
-  'Wi-Fi', 'TV', 'Air Conditioning', 'Mini Bar', 
-  'Ocean View', 'Balcony', 'Room Service', 
-  'Jacuzzi', 'Kitchenette', 'Work Desk'
-];
+/**
+ * MPAATA EMPIRE - ROOMS PAGE
+ * Public facing rooms listing with specific filters.
+ */
 
-const ROOM_TYPES = [
-  'Standard Room', 'Deluxe Suite', 
-  'Ocean View', 'Presidential Suite', 'Family Room'
-];
+// --- Design Assets ---
+const IMAGES = {
+  hero: "https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?q=80&w=2070&auto=format&fit=crop",
+  roomPlaceholder: "https://images.unsplash.com/photo-1618773928121-c32242e63f39?q=80&w=2070&auto=format&fit=crop"
+};
 
-const RoomsPage = () => {
-  // --- State ---
-  const [rooms, setRooms] = useState([]);
-  const [loading, setLoading] = useState(false); 
-  const [submitting, setSubmitting] = useState(false); 
-  const [searchText, setSearchText] = useState('');
+// --- Helper: Estimate Capacity ---
+const getCapacity = (room) => {
+  if (room.capacity) return room.capacity;
+  const type = room.type?.toLowerCase() || '';
+  if (type.includes('family') || type.includes('penthouse')) return 4;
+  if (type.includes('triple')) return 3;
+  if (type.includes('suite') || type.includes('deluxe')) return 2;
+  return 2; // Default
+};
 
-  // Modal State
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  
-  // Form State
-  const [formData, setFormData] = useState({
-    roomNumber: '',
-    type: 'Standard Room',
-    price: '',
-    status: 'Available',
-    nextAvailable: '',
-    amenities: [],
-    description: ''
-  });
+// --- Helper: Map Amenities to Icons ---
+const getAmenityIcon = (amenity) => {
+  const normalized = amenity.toLowerCase();
+  if (normalized.includes('wi-fi') || normalized.includes('wifi')) return <Wifi size={14} />;
+  if (normalized.includes('tv')) return <Tv size={14} />;
+  if (normalized.includes('air') || normalized.includes('ac')) return <Wind size={14} />;
+  if (normalized.includes('balcony')) return <Maximize size={14} />;
+  return <CheckCircle size={14} />;
+};
 
-  // --- 1. Fetch Rooms ---
-  const fetchRooms = async () => {
-    setLoading(true);
-    try {
-      const response = await api.rooms.getAll();
-      const rawData = response.data || response.rooms || response || [];
-      
-      const formattedRooms = Array.isArray(rawData) ? rawData.map(room => ({
-        key: room.id || room._id, 
-        ...room
-      })) : [];
+// --- Components ---
 
-      setRooms(formattedRooms);
-    } catch (error) {
-      console.error(error);
-      alert('Failed to load rooms');
-    } finally {
-      setLoading(false);
-    }
+const Button = ({ children, type = 'default', className = '', ...props }) => {
+  const baseStyle = "px-4 py-2 transition-all duration-300 rounded-[2px] font-sans text-sm tracking-wide cursor-pointer focus:outline-none focus:ring-1 focus:ring-offset-1 focus:ring-[#D4AF37] inline-flex items-center justify-center";
+  const styles = {
+    primary: `bg-gradient-to-r from-[#0F2027] via-[#203A43] to-[#2C5364] text-[#D4AF37] hover:brightness-110 border border-[#D4AF37] shadow-lg`,
+    ghost: `bg-transparent text-white border border-white hover:bg-white hover:text-[#0F2027]`,
+    default: `bg-white text-gray-800 border border-[#d9d9d9] hover:border-[#D4AF37] hover:text-[#D4AF37]`,
+    link: `bg-transparent text-[#D4AF37] hover:text-[#B59024] underline-offset-4 hover:underline border-none px-0`,
   };
-
-  useEffect(() => {
-    fetchRooms();
-  }, []);
-
-  // --- 2. Form Handlers ---
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const toggleAmenity = (amenity) => {
-    setFormData(prev => {
-      const exists = prev.amenities.includes(amenity);
-      return {
-        ...prev,
-        amenities: exists 
-          ? prev.amenities.filter(a => a !== amenity) // Remove
-          : [...prev.amenities, amenity] // Add
-      };
-    });
-  };
-
-  const openModal = (room = null) => {
-    if (room) {
-      setEditingId(room.key);
-      setFormData({
-        roomNumber: room.roomNumber,
-        type: room.type,
-        price: room.price,
-        status: room.status,
-        nextAvailable: room.nextAvailable ? new Date(room.nextAvailable).toISOString().split('T')[0] : '',
-        amenities: room.amenities || [],
-        description: room.description || ''
-      });
-    } else {
-      setEditingId(null);
-      setFormData({
-        roomNumber: '',
-        type: 'Standard Room',
-        price: '',
-        status: 'Available',
-        nextAvailable: '',
-        amenities: [],
-        description: ''
-      });
-    }
-    setIsModalOpen(true);
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setSubmitting(true);
-
-    // Prepare Payload
-    const payload = {
-      ...formData,
-      price: Number(formData.price),
-      nextAvailable: formData.status === 'Available' ? null : formData.nextAvailable,
-    };
-
-    try {
-      if (editingId) {
-        await api.rooms.update(editingId, payload);
-      } else {
-        await api.rooms.create(payload);
-      }
-      setIsModalOpen(false);
-      fetchRooms(); 
-    } catch (error) {
-      console.error(error);
-      alert('Operation failed. Please check inputs.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleDelete = async (id) => {
-    if (!confirm("Are you sure you want to delete this room?")) return;
-    
-    try {
-      await api.rooms.delete(id);
-      setRooms(prev => prev.filter(r => r.key !== id));
-    } catch (error) {
-      console.error(error);
-      alert('Failed to delete room');
-    }
-  };
-
-  // --- 3. UI Helpers ---
-
-  const StatusBadge = ({ status }) => {
-    const styles = {
-      Available: 'bg-green-100 text-green-700 border-green-200',
-      Occupied: 'bg-red-100 text-red-700 border-red-200',
-      Booked: 'bg-blue-100 text-blue-700 border-blue-200',
-      Maintenance: 'bg-gray-100 text-gray-600 border-gray-200',
-    };
-    return (
-      <span className={`px-2 py-1 rounded-[2px] text-[10px] font-bold uppercase tracking-wider border ${styles[status] || styles.Maintenance}`}>
-        {status}
-      </span>
-    );
-  };
-
-  const filteredRooms = rooms.filter(
-    (item) =>
-      item.roomNumber?.toLowerCase().includes(searchText.toLowerCase()) ||
-      item.type?.toLowerCase().includes(searchText.toLowerCase())
-  );
 
   return (
-      <div className="p-6 md:p-12 font-sans text-gray-900">
-        
-        {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-          <div>
-            <h1 className="font-serif text-3xl text-[#0F2027] mb-1">Room Management</h1>
-            <p className="text-gray-500 text-sm">Manage hotel inventory and pricing.</p>
-          </div>
-          <div className="flex gap-3">
-            <button 
-              onClick={fetchRooms} 
-              className="px-4 py-2 border border-gray-200 bg-white hover:border-[#D4AF37] text-gray-600 rounded-[2px] text-sm font-medium transition-colors flex items-center gap-2"
-            >
-              <RefreshCw size={16} className={loading ? "animate-spin" : ""} /> Refresh
-            </button>
-            <button 
-              onClick={() => openModal()}
-              className="px-4 py-2 bg-[#0F2027] text-[#D4AF37] border border-[#0F2027] hover:bg-[#1a2e38] rounded-[2px] text-sm font-medium flex items-center gap-2 transition-colors shadow-lg"
-            >
-              <Plus size={16} /> Add Room
-            </button>
-          </div>
-        </div>
-
-        {/* Search Bar */}
-        <div className="bg-white p-4 rounded-[2px] shadow-sm border border-gray-100 mb-6 flex items-center gap-3 max-w-md">
-          <Search className="text-gray-400" size={20} />
-          <input 
-            type="text"
-            placeholder="Search Room Number or Type..."
-            className="flex-1 bg-transparent outline-none text-sm"
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-          />
-        </div>
-
-        {/* Table */}
-        <div className="bg-white rounded-[2px] shadow-sm border border-gray-100 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead className="bg-gray-50 border-b border-gray-100">
-                <tr>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Room No.</th>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Type</th>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Price / Night</th>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Amenities</th>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Next Available</th>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {loading ? (
-                  <tr>
-                    <td colSpan="7" className="px-6 py-12 text-center">
-                      <div className="flex justify-center"><Loader2 className="animate-spin text-[#D4AF37]" size={24}/></div>
-                    </td>
-                  </tr>
-                ) : filteredRooms.length > 0 ? (
-                  filteredRooms.map((room) => (
-                    <tr key={room.key} className="hover:bg-[#fcfbf7] transition-colors">
-                      <td className="px-6 py-4 font-bold text-[#0F2027]">
-                        {room.roomNumber}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        {room.type}
-                      </td>
-                      <td className="px-6 py-4">
-                        <StatusBadge status={room.status} />
-                      </td>
-                      <td className="px-6 py-4 text-sm font-medium">
-                        UGX {Number(room.price).toLocaleString()}
-                      </td>
-                      <td className="px-6 py-4">
-                         <div className="flex flex-wrap gap-1">
-                           {room.amenities && room.amenities.slice(0, 2).map(a => (
-                             <span key={a} className="px-1.5 py-0.5 bg-gray-100 text-gray-500 text-[10px] rounded border border-gray-200">{a}</span>
-                           ))}
-                           {room.amenities && room.amenities.length > 2 && (
-                             <span className="px-1.5 py-0.5 bg-gray-100 text-gray-400 text-[10px] rounded border border-gray-200">+{room.amenities.length - 2}</span>
-                           )}
-                         </div>
-                      </td>
-                      <td className="px-6 py-4 text-xs">
-                        {room.status === 'Available' ? (
-                          <span className="text-green-600 font-medium">Now</span>
-                        ) : room.nextAvailable ? (
-                          <span className="text-gray-500">{new Date(room.nextAvailable).toLocaleDateString()}</span>
-                        ) : (
-                          <span className="text-gray-400 italic">--</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button 
-                            onClick={() => openModal(room)}
-                            className="p-1.5 text-blue-500 hover:bg-blue-50 rounded transition-colors"
-                          >
-                            <Edit2 size={16} />
-                          </button>
-                          <button 
-                            onClick={() => handleDelete(room.key)}
-                            className="p-1.5 text-red-400 hover:bg-red-50 rounded transition-colors"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan="7" className="px-6 py-12 text-center text-gray-400">
-                      No rooms found.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* --- MODAL --- */}
-        {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0F2027]/80 backdrop-blur-sm animate-fade-in">
-            <div className="bg-white w-full max-w-2xl rounded-[2px] shadow-2xl overflow-hidden animate-scale-in max-h-[90vh] overflow-y-auto">
-              
-              {/* Modal Header */}
-              <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-[#fcfbf7]">
-                <h3 className="font-serif text-lg text-[#0F2027] font-bold">
-                  {editingId ? `Edit Room` : 'Add New Room'}
-                </h3>
-                <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-red-500 transition-colors">
-                  <X size={20} />
-                </button>
-              </div>
-
-              {/* Form */}
-              <form onSubmit={handleSubmit} className="p-6 space-y-6">
-                
-                {/* Row 1 */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                   <div className="space-y-1">
-                      <label className="text-xs font-bold text-gray-500 uppercase">Room Number *</label>
-                      <div className="relative">
-                        <Home className="absolute left-3 top-2.5 text-gray-400" size={16} />
-                        <input 
-                          required
-                          name="roomNumber"
-                          value={formData.roomNumber}
-                          onChange={handleInputChange}
-                          className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-[2px] text-sm focus:outline-none focus:border-[#D4AF37]"
-                          placeholder="e.g. 101"
-                        />
-                      </div>
-                   </div>
-                   <div className="space-y-1">
-                      <label className="text-xs font-bold text-gray-500 uppercase">Price per Night (UGX) *</label>
-                      <div className="relative">
-                        {/* 🟢 CHANGED TO BANKNOTE ICON */}
-                        <Banknote className="absolute left-3 top-2.5 text-gray-400" size={16} />
-                        <input 
-                          required
-                          type="number"
-                          name="price"
-                          value={formData.price}
-                          onChange={handleInputChange}
-                          className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-[2px] text-sm focus:outline-none focus:border-[#D4AF37]"
-                          placeholder="150000"
-                        />
-                      </div>
-                   </div>
-                </div>
-
-                {/* Row 2 */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                   <div className="space-y-1">
-                      <label className="text-xs font-bold text-gray-500 uppercase">Room Type *</label>
-                      <select 
-                        required
-                        name="type"
-                        value={formData.type}
-                        onChange={handleInputChange}
-                        className="w-full px-3 py-2 border border-gray-200 rounded-[2px] text-sm focus:outline-none focus:border-[#D4AF37] bg-white"
-                      >
-                        {ROOM_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                      </select>
-                   </div>
-                   <div className="space-y-1">
-                      <label className="text-xs font-bold text-gray-500 uppercase">Status *</label>
-                      <select 
-                        required
-                        name="status"
-                        value={formData.status}
-                        onChange={handleInputChange}
-                        className="w-full px-3 py-2 border border-gray-200 rounded-[2px] text-sm focus:outline-none focus:border-[#D4AF37] bg-white"
-                      >
-                         <option value="Available">Available</option>
-                         <option value="Occupied">Occupied</option>
-                         <option value="Booked">Booked</option>
-                         <option value="Maintenance">Maintenance</option>
-                      </select>
-                   </div>
-                </div>
-
-                {/* Next Available Date (Conditional) */}
-                {formData.status !== 'Available' && (
-                  <div className="bg-yellow-50 p-4 border border-yellow-100 rounded-[2px]">
-                    <label className="text-xs font-bold text-yellow-700 uppercase block mb-1">When will it be available?</label>
-                    <input 
-                       type="date"
-                       name="nextAvailable"
-                       required
-                       value={formData.nextAvailable}
-                       onChange={handleInputChange}
-                       className="w-full px-3 py-2 border border-yellow-200 rounded-[2px] text-sm focus:outline-none focus:border-yellow-500 bg-white"
-                    />
-                  </div>
-                )}
-
-                {/* Amenities Selector */}
-                <div>
-                   <label className="text-xs font-bold text-gray-500 uppercase block mb-2">Amenities</label>
-                   <div className="flex flex-wrap gap-2">
-                     {AMENITY_OPTIONS.map(amenity => {
-                        const isSelected = formData.amenities.includes(amenity);
-                        return (
-                          <button
-                            key={amenity}
-                            type="button"
-                            onClick={() => toggleAmenity(amenity)}
-                            className={`px-3 py-1.5 text-xs rounded-full border transition-all ${
-                              isSelected 
-                                ? 'bg-[#0F2027] text-[#D4AF37] border-[#0F2027] font-bold shadow-sm' 
-                                : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
-                            }`}
-                          >
-                            {isSelected && <span className="mr-1">✓</span>}
-                            {amenity}
-                          </button>
-                        );
-                     })}
-                   </div>
-                </div>
-
-                {/* Description */}
-                <div className="space-y-1">
-                   <label className="text-xs font-bold text-gray-500 uppercase">Description</label>
-                   <textarea 
-                      name="description"
-                      rows="3"
-                      value={formData.description}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-[2px] text-sm focus:outline-none focus:border-[#D4AF37]"
-                      placeholder="Enter room details..."
-                   ></textarea>
-                </div>
-
-                {/* Footer */}
-                <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-                  <button 
-                    type="button"
-                    onClick={() => setIsModalOpen(false)}
-                    className="px-4 py-2 text-sm text-gray-500 hover:text-[#0F2027] transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button 
-                    type="submit"
-                    disabled={submitting}
-                    className="px-6 py-2 bg-[#0F2027] text-[#D4AF37] text-sm font-medium rounded-[2px] hover:brightness-110 flex items-center gap-2 shadow-lg"
-                  >
-                    {submitting ? <Loader2 size={16} className="animate-spin" /> : (editingId ? 'Update Room' : 'Create Room')}
-                  </button>
-                </div>
-
-              </form>
-            </div>
-          </div>
-        )}
-
-      </div>
+    <button className={`${baseStyle} ${styles[type]} ${className}`} {...props}>
+      {children}
+    </button>
   );
 };
 
-RoomsPage.getLayout = function getLayout(page) {
+const Navbar = () => {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [user, setUser] = useState(null);
+  const [userRole, setUserRole] = useState('client');
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const router = useRouter();
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setUser(currentUser);
+      if (currentUser) {
+        try {
+          const tokenResult = await currentUser.getIdTokenResult();
+          setUserRole(tokenResult.claims?.role || 'client');
+        } catch (error) {
+          console.error("Failed to fetch user role", error);
+          setUserRole('client');
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleLogout = async () => {
+    await signOut(auth);
+    setUser(null);
+    setDropdownOpen(false);
+    router.refresh();
+  };
+
+  const isAdmin = ['admin', 'super_admin', 'manager'].includes(userRole);
+
+  const navigateToDashboard = () => {
+    router.push('/my'); 
+    setDropdownOpen(false);
+  };
+
+  const handleLogin = () => {
+    router.push('/my'); 
+  };
+
   return (
-    <DashboardLayout>
-      {page}
-    </DashboardLayout>
+    <nav className="fixed w-full z-50 bg-white/95 backdrop-blur-md shadow-sm py-4 text-[#0F2027]">
+      <div className="max-w-7xl mx-auto px-6 flex justify-between items-center">
+        {/* Logo */}
+        <div className="flex items-center gap-2 cursor-pointer" onClick={() => router.push('/')}>
+          <div className="w-8 h-8 border-2 border-[#0F2027] flex items-center justify-center">
+            <span className="font-serif text-xl text-[#0F2027]">M</span>
+          </div>
+          <span className="font-serif text-xl md:text-2xl tracking-widest font-semibold uppercase">MPAATA</span>
+        </div>
+
+        {/* Desktop Menu */}
+        <div className="hidden md:flex items-center gap-8 font-sans text-xs tracking-[0.15em] uppercase font-medium">
+          {['Home', 'Royal Suits'].map((item) => (
+            <a key={item} href={item === 'Home' ? '/' : '/rooms'} className="hover:text-[#D4AF37] transition-colors">{item}</a>
+          ))}
+          
+          {user ? (
+            isAdmin ? (
+              // ADMIN VIEW
+              <Button 
+                onClick={() => router.push('/admin/dashboard')}
+                type="primary" 
+                className="uppercase text-xs px-6 py-2.5"
+              >
+                Access Dashboard
+              </Button>
+            ) : (
+              // CLIENT VIEW
+              <div className="relative">
+                <button 
+                  onClick={() => setDropdownOpen(!dropdownOpen)} 
+                  className="flex items-center gap-2 focus:outline-none hover:opacity-80 transition-opacity"
+                >
+                  {user.photoURL ? (
+                    <img src={user.photoURL} alt="Profile" className="w-8 h-8 rounded-full border border-gray-200 object-cover" />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-[#0F2027] text-[#D4AF37] flex items-center justify-center font-bold text-xs">
+                      {user.displayName?.[0] || 'U'}
+                    </div>
+                  )}
+                  <span className="normal-case tracking-normal font-bold text-[#0F2027]">{user.displayName?.split(' ')[0]}</span>
+                  <ChevronRight size={14} className={`transform transition-transform ${dropdownOpen ? 'rotate-90' : ''}`} />
+                </button>
+
+                {/* Dropdown */}
+                {dropdownOpen && (
+                  <div className="absolute right-0 mt-3 w-48 bg-white rounded-[2px] shadow-xl border border-gray-100 py-1 animate-fade-in-up origin-top-right">
+                    <div className="px-4 py-2 border-b border-gray-50">
+                      <p className="text-[10px] text-gray-400 uppercase tracking-wider">Signed in as</p>
+                      <p className="text-sm font-bold text-[#0F2027] truncate">{user.email}</p>
+                    </div>
+                    <button onClick={navigateToDashboard} className="w-full text-left px-4 py-2 text-xs font-bold text-gray-600 hover:bg-gray-50 hover:text-[#0F2027] flex items-center gap-2">
+                      <Calendar size={14} /> My Bookings
+                    </button>
+                    <button onClick={navigateToDashboard} className="w-full text-left px-4 py-2 text-xs font-bold text-gray-600 hover:bg-gray-50 hover:text-[#0F2027] flex items-center gap-2">
+                      <CreditCard size={14} /> My Payments
+                    </button>
+                    <div className="border-t border-gray-50 mt-1">
+                      <button onClick={handleLogout} className="w-full text-left px-4 py-2 text-xs font-bold text-red-500 hover:bg-red-50 flex items-center gap-2">
+                        <LogOut size={14} /> Sign Out
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          ) : (
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={handleLogin}
+                className="text-xs font-bold uppercase tracking-widest hover:text-[#D4AF37] transition-colors"
+              >
+                Login
+              </button>
+              <Button 
+                onClick={handleLogin}
+                type="primary"
+                className="bg-gradient-to-r from-[#0F2027] via-[#203A43] to-[#2C5364] text-[#D4AF37] border border-[#D4AF37] px-6 py-2.5 rounded-[2px] hover:brightness-110 transition-all"
+              >
+                Book Now
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {/* Mobile Toggle */}
+        <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="md:hidden">
+          {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+        </button>
+      </div>
+
+      {/* Mobile Menu */}
+      {mobileMenuOpen && (
+        <div className="absolute top-full left-0 w-full bg-white border-t border-gray-100 shadow-lg p-6 flex flex-col gap-4 md:hidden">
+           <a href="/" className="text-[#0F2027] font-serif text-lg">Home</a>
+           <a href="/rooms" className="text-[#0F2027] font-serif text-lg">Royal Suits</a>
+           {user ? (
+             <>
+               <div className="h-px bg-gray-100 my-2"></div>
+               <div className="flex items-center gap-3">
+                  {user.photoURL ? (
+                    <img src={user.photoURL} alt="Profile" className="w-8 h-8 rounded-full border border-gray-200" />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-[#0F2027] text-[#D4AF37] flex items-center justify-center font-bold text-xs">
+                      {user.displayName?.[0] || 'U'}
+                    </div>
+                  )}
+                  <span className="font-bold text-[#0F2027]">{user.displayName}</span>
+               </div>
+               {isAdmin ? (
+                 <Button onClick={() => router.push('/admin/dashboard')} type="primary" className="w-full">Access Dashboard</Button>
+               ) : (
+                 <Button onClick={navigateToDashboard} type="primary" className="w-full">My Dashboard</Button>
+               )}
+               <button onClick={handleLogout} className="text-left text-sm text-red-500 font-bold">Sign Out</button>
+             </>
+           ) : (
+             <button onClick={handleLogin} className="mt-2 w-full bg-[#0F2027] text-[#D4AF37] py-3 font-bold uppercase tracking-widest text-xs">
+               Login / Book Now
+             </button>
+           )}
+        </div>
+      )}
+    </nav>
+  );
+};
+
+const RoomCard = ({ room }) => {
+  return (
+    <div className="group bg-white rounded-[2px] shadow-sm hover:shadow-xl transition-all duration-500 overflow-hidden flex flex-col h-full border border-gray-100 hover:border-[#D4AF37]">
+      {/* Image */}
+      <div className="relative h-64 overflow-hidden bg-gray-100">
+        <div className="absolute inset-0 bg-[#0F2027]/10 group-hover:bg-transparent transition-colors z-10"></div>
+        <img 
+          src={room.image || IMAGES.roomPlaceholder} 
+          alt={room.type} 
+          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
+        />
+        <div className="absolute top-4 right-4 z-20">
+            <span className={`px-3 py-1 text-[10px] uppercase tracking-widest font-bold ${room.status === 'Available' ? 'bg-[#D4AF37] text-[#0F2027]' : 'bg-gray-200 text-gray-500'}`}>
+                {room.status}
+            </span>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="p-8 flex flex-col flex-grow">
+        <div className="flex justify-between items-start mb-4">
+            <div>
+                <h3 className="font-serif text-xl text-[#0F2027] mb-1 group-hover:text-[#D4AF37] transition-colors">
+                    {room.type}
+                </h3>
+                <p className="text-xs text-gray-400 uppercase tracking-widest">
+                  Room {room.roomNumber} • {getCapacity(room)} Guests
+                </p>
+            </div>
+            <div className="text-right">
+                <span className="block font-serif text-lg text-[#D4AF37] font-bold">
+                    UGX {Number(room.price).toLocaleString()}
+                </span>
+                <span className="text-[10px] text-gray-400 uppercase">Per Night</span>
+            </div>
+        </div>
+
+        <div className="w-12 h-[2px] bg-gray-100 group-hover:bg-[#D4AF37] transition-colors mb-6"></div>
+
+        <p className="text-gray-500 text-sm leading-relaxed mb-6 line-clamp-2">
+            {room.description || "Experience the pinnacle of luxury in our meticulously designed suites, featuring satin blue accents and royal gold finishes."}
+        </p>
+
+        {/* Amenities */}
+        <div className="mb-8">
+            <div className="flex flex-wrap gap-2">
+                {room.amenities && room.amenities.length > 0 ? (
+                    room.amenities.slice(0, 4).map((amenity, idx) => (
+                        <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#fcfbf7] border border-gray-200 rounded-[2px] text-xs text-gray-600">
+                            {getAmenityIcon(amenity)}
+                            {amenity}
+                        </span>
+                    ))
+                ) : (
+                    <span className="text-xs text-gray-400 italic">Standard amenities included</span>
+                )}
+            </div>
+        </div>
+
+        {/* Action */}
+        <div className="mt-auto pt-6 border-t border-gray-50">
+            <button className="w-full group/btn flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-widest text-[#0F2027] hover:text-[#D4AF37] transition-colors">
+                View Details 
+                <ArrowRight size={14} className="group-hover/btn:translate-x-1 transition-transform" />
+            </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const Footer = () => (
+  <footer className="bg-[#0F2027] text-white py-12 text-center border-t-4 border-[#D4AF37]">
+    <h2 className="font-serif text-2xl mb-6">MPAATA Empire</h2>
+    <p className="text-gray-400 text-sm mb-8">Hoima City, Bujumbura Division, Rusaka</p>
+    <div className="flex justify-center gap-6 text-xs uppercase tracking-widest text-[#D4AF37]">
+        <a href="#">Privacy</a>
+        <a href="#">Terms</a>
+        <a href="#">Contact</a>
+    </div>
+  </footer>
+);
+
+// --- Page Component ---
+
+const RoomsPage = () => {
+  const [rooms, setRooms] = useState([]);
+  const [filteredRooms, setFilteredRooms] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
+  // Filter States
+  const [activeFilter, setActiveFilter] = useState('All'); // 'All', 'Balcony', 'Ground Floor', 'First Floor'
+  const [occupants, setOccupants] = useState('Any'); // 'Any', '1', '2', '3', '4+'
+
+  useEffect(() => {
+    const fetchRooms = async () => {
+      setLoading(true);
+      try {
+        const response = await api.rooms.getAll();
+        const rawData = response.data || response.rooms || [];
+        setRooms(rawData);
+        setFilteredRooms(rawData);
+      } catch (err) {
+        console.error("Failed to fetch rooms", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchRooms();
+  }, []);
+
+  // --- Filtering Logic ---
+  useEffect(() => {
+    let result = rooms;
+
+    // 1. Filter by Category (Buttons)
+    if (activeFilter === 'Balcony') {
+      result = result.filter(r => r.amenities?.some(a => a.toLowerCase().includes('balcony')));
+    } else if (activeFilter === 'Ground Floor') {
+      result = result.filter(r => r.roomNumber && r.roomNumber.toString().startsWith('1'));
+    } else if (activeFilter === 'First Floor') {
+      result = result.filter(r => r.roomNumber && r.roomNumber.toString().startsWith('2'));
+    }
+
+    // 2. Filter by Occupants (Dropdown)
+    if (occupants !== 'Any') {
+      const minGuests = occupants === '4+' ? 4 : parseInt(occupants);
+      result = result.filter(r => getCapacity(r) >= minGuests);
+    }
+
+    setFilteredRooms(result);
+  }, [activeFilter, occupants, rooms]);
+
+  return (
+    <div className="min-h-screen bg-[#fcfbf7] font-sans text-gray-900">
+      <Navbar />
+
+      {/* Hero Header */}
+      <div className="relative h-[25vh] min-h-[250px] flex items-end justify-center pb-10 text-center text-white px-4">
+        <div className="absolute inset-0 z-0">
+          <img 
+            src={IMAGES.hero} 
+            alt="Royal Suites" 
+            className="w-full h-full object-cover brightness-[0.5]" 
+          />
+           <div className="absolute inset-0 bg-[#0F2027]/40 mix-blend-overlay"></div>
+        </div>
+        <div className="relative z-10 animate-fade-in-up">
+            <span className="block font-sans text-xs tracking-[0.3em] uppercase mb-4 text-[#D4AF37]">
+                Accommodations
+            </span>
+            <h1 className="font-serif text-4xl md:text-6xl text-white">
+                The Royal <span className="text-[#F3E5AB] italic">Chambers</span>
+            </h1>
+        </div>
+      </div>
+
+      {/* --- Filter Bar --- */}
+      <div className="bg-white border-b border-gray-200 sticky top-[72px] z-40 shadow-sm">
+          <div className="max-w-7xl mx-auto px-6 py-4 flex flex-col md:flex-row gap-6 items-center justify-between">
+            
+            {/* Left: Occupants Filter */}
+            <div className="flex items-center gap-3 w-full md:w-auto">
+                <div className="flex items-center gap-2 text-gray-500 text-sm min-w-fit">
+                    <User size={16} />
+                    <span className="uppercase tracking-wider text-xs font-bold">Occupants:</span>
+                </div>
+                <select 
+                  value={occupants}
+                  onChange={(e) => setOccupants(e.target.value)}
+                  className="bg-gray-50 border border-gray-200 text-sm rounded px-3 py-1.5 focus:border-[#D4AF37] outline-none text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors"
+                >
+                  <option value="Any">Any Guests</option>
+                  <option value="1">1 Guest</option>
+                  <option value="2">2 Guests</option>
+                  <option value="3">3 Guests</option>
+                  <option value="4+">4+ Guests (Family)</option>
+                </select>
+            </div>
+
+            {/* Right: Feature Filters */}
+            <div className="flex gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0 no-scrollbar">
+                {['All', 'Balcony', 'Ground Floor', 'First Floor'].map((filter) => (
+                    <button 
+                        key={filter} 
+                        onClick={() => setActiveFilter(filter)}
+                        className={`text-xs uppercase tracking-widest px-5 py-2 rounded-full border transition-all whitespace-nowrap ${
+                            activeFilter === filter 
+                            ? 'bg-[#0F2027] text-[#D4AF37] border-[#0F2027] shadow-md' 
+                            : 'bg-transparent text-gray-500 border-gray-200 hover:border-[#D4AF37] hover:text-[#0F2027]'
+                        }`}
+                    >
+                        {filter}
+                    </button>
+                ))}
+            </div>
+          </div>
+      </div>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-6 py-16">
+        {loading ? (
+            <div className="flex flex-col items-center justify-center h-64">
+                <Loader2 size={40} className="animate-spin text-[#D4AF37] mb-4" />
+                <p className="text-[#0F2027] font-serif text-lg animate-pulse">Preparing your quarters...</p>
+            </div>
+        ) : filteredRooms.length === 0 ? (
+            <div className="text-center py-20 bg-white rounded-[2px] border border-dashed border-gray-200">
+                <Search className="mx-auto text-gray-300 mb-4" size={48} />
+                <h3 className="text-xl font-serif text-gray-400 mb-2">No Suites Found</h3>
+                <p className="text-sm text-gray-400 mb-6">Try adjusting your filters to find available rooms.</p>
+                <button 
+                    onClick={() => { setActiveFilter('All'); setOccupants('Any'); }}
+                    className="px-6 py-2 bg-[#0F2027] text-white text-xs uppercase tracking-widest rounded-[2px] hover:bg-[#203A43]"
+                >
+                    Clear Filters
+                </button>
+            </div>
+        ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {filteredRooms.map((room) => (
+                    <RoomCard key={room.id || room._id || room.key} room={room} />
+                ))}
+            </div>
+        )}
+      </main>
+
+      <Footer />
+
+      <style jsx global>{`
+          /* Hide Scrollbar for filter overflow */
+          .no-scrollbar::-webkit-scrollbar { display: none; }
+          .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+          
+          @import url('https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400&display=swap');
+          @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+          .animate-fade-in-up {
+            animation: fadeInUp 1s ease-out forwards;
+          }
+      `}</style>
+    </div>
   );
 };
 

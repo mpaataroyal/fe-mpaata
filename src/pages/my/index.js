@@ -6,7 +6,7 @@ import {
   Calendar, CreditCard, LogOut, Plus, Search, 
   User, CheckCircle, AlertCircle, X, ChevronDown, 
   Loader2, DollarSign, Phone, ArrowRight, Menu,
-  Wifi, Tv, Wind, Maximize, Filter, Home, AlertTriangle
+  Wifi, Tv, Wind, Maximize, Filter, Home, AlertTriangle, RefreshCw
 } from 'lucide-react';
 import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
 import { auth, googleProvider } from '@/libs/firebase';
@@ -118,6 +118,7 @@ const Dashboard = () => {
 
   // Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [bookingLoading, setBookingLoading] = useState(false); // <--- Added loading state for booking
   const [formData, setFormData] = useState({ 
     roomId: '', 
     checkIn: '', 
@@ -132,15 +133,16 @@ const Dashboard = () => {
   const [phoneNumberInput, setPhoneNumberInput] = useState('');
   const [phoneSaving, setPhoneSaving] = useState(false);
 
+  // Retry Payment State
+  const [retryLoadingId, setRetryLoadingId] = useState(null);
+
   // --- Auth & Initial Load ---
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
-        // 1. Fetch backend profile to check for missing data (like phone number)
         let backendUser = null;
         try {
           const res = await api.users.getById(currentUser.uid);
-          // Backend might return { user: ... } or just the user object depending on implementation
           backendUser = res.user || res; 
         } catch (err) {
           console.warn("Backend user profile fetch failed, user might be new.", err);
@@ -156,7 +158,6 @@ const Dashboard = () => {
           phoneNumber: phoneNumber
         });
 
-        // 2. Trigger Phone Number Modal if missing
         if (!phoneNumber) {
           setIsPhoneModalOpen(true);
         }
@@ -217,17 +218,9 @@ const Dashboard = () => {
     
     setPhoneSaving(true);
     try {
-      // Send update to backend
       await api.users.update(user.uid, { phoneNumber: phoneNumberInput });
-      
-      // Update local state
       setUser(prev => ({ ...prev, phoneNumber: phoneNumberInput }));
-      
-      // Close modal
       setIsPhoneModalOpen(false);
-      
-      // Optional: Refresh data in case phone number affects anything
-      // await loadData(user.uid); 
     } catch (error) {
       console.error("Failed to update phone number:", error);
       alert("Failed to save phone number. Please try again.");
@@ -236,11 +229,30 @@ const Dashboard = () => {
     }
   };
 
+  const handleRetryPayment = async (payment) => {
+    if (!confirm(`Retry payment of UGX ${Number(payment.amount).toLocaleString()} using ${payment.phone}?`)) return;
+
+    setRetryLoadingId(payment.id);
+    try {
+      await api.payments.initiate({
+        bookingId: payment.bookingId,
+        phoneNumber: payment.phone,
+        amount: payment.amount
+      });
+      alert('Payment prompt sent to your phone.');
+      await loadData(user.uid); // Refresh to show new pending transaction
+    } catch (error) {
+      console.error(error);
+      alert('Retry failed. Please try again later.');
+    } finally {
+      setRetryLoadingId(null);
+    }
+  };
+
   // --- Filter Logic ---
   useEffect(() => {
     let result = rooms;
 
-    // 1. Feature Filters
     if (roomFilter === 'Balcony') {
       result = result.filter(r => r.amenities?.some(a => a.toLowerCase().includes('balcony')));
     } else if (roomFilter === 'Ground Floor') {
@@ -249,7 +261,6 @@ const Dashboard = () => {
       result = result.filter(r => r.roomNumber && r.roomNumber.toString().startsWith('2'));
     }
 
-    // 2. Occupants Filter (Estimating capacity if not explicit)
     if (occupantsFilter !== 'Any') {
       const minGuests = occupantsFilter === '4+' ? 4 : parseInt(occupantsFilter);
       result = result.filter(r => {
@@ -266,20 +277,21 @@ const Dashboard = () => {
   }, [roomFilter, occupantsFilter, rooms]);
 
   const handleBookRoom = (room) => {
+    // --- DATE PREFILL LOGIC ---
     const now = new Date();
-    // Default Check-in: Now, ISO string adjusted to local time for input
+    // Adjust to local ISO string for input
     const tzOffset = now.getTimezoneOffset() * 60000;
-    const checkIn = new Date(now - tzOffset).toISOString().slice(0, 16);
+    const checkIn = new Date(now - tzOffset).toISOString().slice(0, 16); // YYYY-MM-DDTHH:mm
     
     const tomorrow = new Date(now);
     tomorrow.setDate(tomorrow.getDate() + 1);
-    const checkOutDate = tomorrow.toISOString().slice(0, 10);
+    const checkOutDate = tomorrow.toISOString().slice(0, 10); // YYYY-MM-DD
 
     setFormData({ 
       roomId: room.id || room._id, 
       checkIn, 
       checkOutDate, 
-      phone: user.phoneNumber || '', // Prefill with user phone if available
+      phone: user.phoneNumber || '', 
       paymentMethod: 'Mobile Money',
       paymentPhone: user.phoneNumber || '' 
     });
@@ -288,25 +300,28 @@ const Dashboard = () => {
 
   const handleSubmitBooking = async (e) => {
     e.preventDefault();
+    setBookingLoading(true); // <--- START LOADING
     try {
-      // Construct fixed 10:00 AM checkout
+      // --- FIXED CHECKOUT LOGIC ---
       const checkOut = `${formData.checkOutDate}T10:00:00`;
 
       await api.bookings.create({
         ...formData,
         checkOut,
         userId: user.uid,
-        guestName: user.name, // Use logged-in user name
+        guestName: user.name, // Use logged-in user name automatically
         guestPhone: formData.phone,
         status: 'pending'
       });
+      await loadData(user.uid); // <--- REFETCH DATA
       setIsModalOpen(false);
       alert('Booking request sent successfully!');
-      loadData(user.uid);
     } catch (error) {
       console.error(error);
       const msg = error.response?.data?.error || 'Failed to create booking';
       alert(msg);
+    } finally {
+      setBookingLoading(false); // <--- STOP LOADING
     }
   };
 
@@ -315,7 +330,6 @@ const Dashboard = () => {
   if (loading) return <div className="h-screen flex items-center justify-center bg-[#fcfbf7]"><Loader2 className="animate-spin text-[#D4AF37]" size={40} /></div>;
   if (!user) return <LoginScreen onLogin={handleLogin} loading={authLoading} />;
 
-  // Calculate total spent for payments tab
   const totalSpent = payments
     .filter(p => p.status === 'success' || p.status === 'paid')
     .reduce((sum, p) => sum + Number(p.amount || 0), 0);
@@ -566,6 +580,10 @@ const Dashboard = () => {
                   const booking = bookings.find(b => b.id === payment.bookingId);
                   const displayRoom = booking ? booking.roomName : `Booking ${payment.bookingId?.slice(0,6) || 'Ref'}`;
 
+                  // Check if retry is applicable
+                  const canRetry = (payment.status === 'failed' || payment.status === 'pending') && 
+                                   (payment.provider === 'Mobile Money' || payment.provider === 'mobile_money');
+
                   return (
                     <div key={payment.id} className="flex justify-between items-center p-4 border border-gray-100 rounded-[2px] hover:border-[#D4AF37] transition-all bg-gray-50/30">
                        <div>
@@ -576,9 +594,21 @@ const Dashboard = () => {
                             <span className="capitalize">{payment.provider}</span>
                          </div>
                        </div>
-                       <div className="text-right">
+                       <div className="text-right flex flex-col items-end gap-1">
                           <span className="block font-bold text-sm text-[#0F2027]">UGX {Number(payment.amount).toLocaleString()}</span>
                           <StatusBadge status={payment.status} type="payment" />
+                          
+                          {/* Retry Button */}
+                          {canRetry && (
+                            <button 
+                              onClick={() => handleRetryPayment(payment)}
+                              disabled={retryLoadingId === payment.id}
+                              className="text-[10px] font-bold text-amber-600 flex items-center justify-end gap-1 mt-1 hover:underline ml-auto"
+                            >
+                              {retryLoadingId === payment.id ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />}
+                              Retry
+                            </button>
+                          )}
                        </div>
                     </div>
                   );
@@ -641,7 +671,7 @@ const Dashboard = () => {
                <div className="bg-amber-50 border border-amber-200 p-3 rounded-[2px] flex items-start gap-2">
                   <AlertTriangle className="text-amber-600 mt-0.5 shrink-0" size={14} />
                   <p className="text-xs text-amber-800">
-                    Standard checkout time is <strong>10:00 AM</strong>.
+                    Standard checkout time is <strong>10:00 AM</strong>. Late checkout may incur extra charges.
                   </p>
                </div>
 
@@ -692,8 +722,10 @@ const Dashboard = () => {
                </div>
 
                <div className="pt-4 flex justify-end gap-3">
-                 <Button variant="secondary" type="button" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-                 <Button type="submit">Confirm Booking</Button>
+                 <Button variant="secondary" type="button" onClick={() => setIsModalOpen(false)} disabled={bookingLoading}>Cancel</Button>
+                 <Button type="submit" disabled={bookingLoading}>
+                   {bookingLoading ? <Loader2 className="animate-spin" size={16} /> : 'Confirm Booking'}
+                 </Button>
                </div>
             </form>
           </div>
