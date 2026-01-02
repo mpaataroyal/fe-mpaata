@@ -5,7 +5,7 @@ import { onAuthStateChanged } from 'firebase/auth'; // Import this
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ||
-  'https://simple-maggot-expert.ngrok-free.app/api/v1';
+  'http://localhost:3000/api/v1';
 
 // Create axios instance
 const apiAgent = axios.create({
