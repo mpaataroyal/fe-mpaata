@@ -180,8 +180,10 @@ export const api = {
     },
   },
   dashboard: {
-    getStats: async () => {
-      const response = await apiAgent.get('/dashboard/stats');
+    getStats: async (range) => {
+      console.log('=======', range);
+      
+      const response = await apiAgent.get('/dashboard/stats', { params: { range } });
       return response.data;
     },
   },
