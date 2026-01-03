@@ -3,8 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Search, Plus, Edit2, Trash2, X, RefreshCw, 
-  Home, Banknote, CheckCircle, AlertTriangle, Loader2 // <--- Changed DollarSign to Banknote
+  Home, Banknote, CheckCircle, AlertTriangle, Loader2, Power
 } from 'lucide-react';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from '@/libs/firebase';
 import DashboardLayout from '@/layout';
 import { api } from '@/libs/apiAgent'; 
 
@@ -15,8 +17,11 @@ const AMENITY_OPTIONS = [
 ];
 
 const ROOM_TYPES = [
-  'Standard Room', 'Deluxe Suite', 
-  'Ocean View', 'Presidential Suite', 'Family Room'
+  'ROYAL 1',
+  'ROYAL 2',
+  'TWIN SUIT',
+  'STANDARD SUIT',
+  'DELUXY SUIT'
 ];
 
 const RoomsPage = () => {
@@ -25,6 +30,7 @@ const RoomsPage = () => {
   const [loading, setLoading] = useState(false); 
   const [submitting, setSubmitting] = useState(false); 
   const [searchText, setSearchText] = useState('');
+  const [userRole, setUserRole] = useState(null);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -33,13 +39,33 @@ const RoomsPage = () => {
   // Form State
   const [formData, setFormData] = useState({
     roomNumber: '',
-    type: 'Standard Room',
+    type: 'STANDARD SUIT',
     price: '',
     status: 'Available',
     nextAvailable: '',
     amenities: [],
     description: ''
   });
+
+  // --- Auth Check ---
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        try {
+          const token = await user.getIdTokenResult();
+          setUserRole(token.claims.role || 'client');
+        } catch (error) {
+          console.error("Error fetching claims", error);
+        }
+      } else {
+        setUserRole(null);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const isAdminOrManager = ['admin', 'manager'].includes(userRole);
+  const isReceptionist = userRole === 'receptionist';
 
   // --- 1. Fetch Rooms ---
   const fetchRooms = async () => {
@@ -101,7 +127,7 @@ const RoomsPage = () => {
       setEditingId(null);
       setFormData({
         roomNumber: '',
-        type: 'Standard Room',
+        type: 'STANDARD SUIT',
         price: '',
         status: 'Available',
         nextAvailable: '',
@@ -151,6 +177,24 @@ const RoomsPage = () => {
     }
   };
 
+  const handleStatusToggle = async (room) => {
+    const newStatus = room.status === 'Available' ? 'Maintenance' : 'Available';
+    const action = newStatus === 'Available' ? 'make available' : 'mark unavailable';
+    
+    if (!confirm(`Are you sure you want to ${action} Room ${room.roomNumber}?`)) return;
+
+    try {
+      await api.rooms.update(room.key, { 
+        status: newStatus,
+        nextAvailable: null // Reset next available when toggling manually
+      });
+      fetchRooms();
+    } catch (error) {
+      console.error(error);
+      alert('Failed to update status');
+    }
+  };
+
   // --- 3. UI Helpers ---
 
   const StatusBadge = ({ status }) => {
@@ -174,6 +218,7 @@ const RoomsPage = () => {
   );
 
   return (
+    <DashboardLayout>
       <div className="p-6 md:p-12 font-sans text-gray-900">
         
         {/* Header */}
@@ -189,12 +234,16 @@ const RoomsPage = () => {
             >
               <RefreshCw size={16} className={loading ? "animate-spin" : ""} /> Refresh
             </button>
-            <button 
-              onClick={() => openModal()}
-              className="px-4 py-2 bg-[#0F2027] text-[#D4AF37] border border-[#0F2027] hover:bg-[#1a2e38] rounded-[2px] text-sm font-medium flex items-center gap-2 transition-colors shadow-lg"
-            >
-              <Plus size={16} /> Add Room
-            </button>
+            
+            {/* Hide Add Room for Receptionists */}
+            {isAdminOrManager && (
+              <button 
+                onClick={() => openModal()}
+                className="px-4 py-2 bg-[#0F2027] text-[#D4AF37] border border-[#0F2027] hover:bg-[#1a2e38] rounded-[2px] text-sm font-medium flex items-center gap-2 transition-colors shadow-lg"
+              >
+                <Plus size={16} /> Add Room
+              </button>
+            )}
           </div>
         </div>
 
@@ -268,18 +317,40 @@ const RoomsPage = () => {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <button 
-                            onClick={() => openModal(room)}
-                            className="p-1.5 text-blue-500 hover:bg-blue-50 rounded transition-colors"
-                          >
-                            <Edit2 size={16} />
-                          </button>
-                          <button 
-                            onClick={() => handleDelete(room.key)}
-                            className="p-1.5 text-red-400 hover:bg-red-50 rounded transition-colors"
-                          >
-                            <Trash2 size={16} />
-                          </button>
+                          
+                          {/* Admin/Manager Actions */}
+                          {isAdminOrManager && (
+                            <>
+                              <button 
+                                onClick={() => openModal(room)}
+                                className="p-1.5 text-blue-500 hover:bg-blue-50 rounded transition-colors"
+                              >
+                                <Edit2 size={16} />
+                              </button>
+                              <button 
+                                onClick={() => handleDelete(room.key)}
+                                className="p-1.5 text-red-400 hover:bg-red-50 rounded transition-colors"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </>
+                          )}
+
+                          {/* Receptionist Toggle Action */}
+                          {isReceptionist && (
+                            <button 
+                              onClick={() => handleStatusToggle(room)}
+                              className={`p-1.5 rounded transition-colors flex items-center gap-1 text-xs font-bold border ${
+                                room.status === 'Available' 
+                                  ? 'text-red-500 border-red-200 hover:bg-red-50' 
+                                  : 'text-green-600 border-green-200 hover:bg-green-50'
+                              }`}
+                              title={room.status === 'Available' ? "Mark as Unavailable" : "Mark as Available"}
+                            >
+                              <Power size={14} />
+                              {room.status === 'Available' ? 'Disable' : 'Enable'}
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -297,7 +368,7 @@ const RoomsPage = () => {
         </div>
 
         {/* --- MODAL --- */}
-        {isModalOpen && (
+        {isModalOpen && isAdminOrManager && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0F2027]/80 backdrop-blur-sm animate-fade-in">
             <div className="bg-white w-full max-w-2xl rounded-[2px] shadow-2xl overflow-hidden animate-scale-in max-h-[90vh] overflow-y-auto">
               
@@ -333,7 +404,6 @@ const RoomsPage = () => {
                    <div className="space-y-1">
                       <label className="text-xs font-bold text-gray-500 uppercase">Price per Night (UGX) *</label>
                       <div className="relative">
-                        {/* 🟢 CHANGED TO BANKNOTE ICON */}
                         <Banknote className="absolute left-3 top-2.5 text-gray-400" size={16} />
                         <input 
                           required
@@ -456,13 +526,6 @@ const RoomsPage = () => {
         )}
 
       </div>
-  );
-};
-
-RoomsPage.getLayout = function getLayout(page) {
-  return (
-    <DashboardLayout>
-      {page}
     </DashboardLayout>
   );
 };

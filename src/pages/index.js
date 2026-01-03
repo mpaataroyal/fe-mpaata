@@ -14,11 +14,20 @@ import { api } from '@/libs/apiAgent';
 
 // --- Design Assets ---
 const IMAGES = {
-  hero: "https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?q=80&w=2070&auto=format&fit=crop",
-  pool: "https://images.unsplash.com/photo-1576013551627-0cc20b96c2a7?q=80&w=2070&auto=format&fit=crop",
+  hero: "hero_bg.png",
+  pool: "display.jpg",
   // Fallback map image if API key fails
   mapPlaceholder: "https://images.unsplash.com/photo-1524661135-423995f22d0b?q=80&w=2074&auto=format&fit=crop", 
   roomPlaceholder: "https://images.unsplash.com/photo-1618773928121-c32242e63f39?q=80&w=2070&auto=format&fit=crop"
+};
+
+// --- Room Type Image Mapping ---
+const ROOM_TYPE_IMAGES = {
+  'ROYAL 1': "royal1.webp", // Grand Luxury
+  'ROYAL 2': "royal2.webp", // Modern Royal
+  'TWIN SUIT': "https://images.unsplash.com/photo-1566665797739-1674de7a421a?q=80&w=2074&auto=format&fit=crop", // Two Beds
+  'STANDARD SUIT': "suit.jpg", // Cozy Standard
+  'DELUXY SUIT': "https://images.unsplash.com/photo-1618773928121-c32242e63f39?q=80&w=2070&auto=format&fit=crop", // Spacious Deluxe
 };
 
 // --- Components ---
@@ -80,9 +89,10 @@ const Navbar = () => {
     router.refresh();
   };
 
-  const isAdmin = ['admin', 'super_admin', 'manager'].includes(userRole);
+  const isAdmin = ['admin', 'super_admin', 'manager','receptionist'].includes(userRole);
 
   const getDashboardLink = () => {
+    if (userRole === 'receptionist') return '/admin/bookings';
     return isAdmin ? '/admin/dashboard' : '/my';
   };
 
@@ -115,7 +125,7 @@ const Navbar = () => {
             isAdmin ? (
               // ADMIN VIEW
               <Button 
-                onClick={() => router.push('/admin/dashboard')}
+                onClick={() => router.push(getDashboardLink())}
                 type={scrolled ? 'primary' : 'ghost'} 
                 className="ml-4 uppercase text-xs px-6 py-2.5"
               >
@@ -328,12 +338,8 @@ const IntroSection = () => (
         </p>
         <div className="grid grid-cols-2 gap-8 pt-4">
           <div>
-            <span className="block font-serif text-3xl text-[#D4AF37] mb-1">50+</span>
+            <span className="block font-serif text-3xl text-[#D4AF37] mb-1">20+</span>
             <span className="text-xs uppercase tracking-widest text-gray-500">Royal Suites</span>
-          </div>
-          <div>
-            <span className="block font-serif text-3xl text-[#D4AF37] mb-1">4</span>
-            <span className="text-xs uppercase tracking-widest text-gray-500">Infinity Pools</span>
           </div>
         </div>
       </div>
@@ -404,7 +410,7 @@ const RoomsSection = () => {
             {rooms.map((room) => (
               <RoomCard 
                 key={room.id || room._id}
-                image={room.image || IMAGES.roomPlaceholder} 
+                image={ROOM_TYPE_IMAGES[room.type] || IMAGES.roomPlaceholder} // Use mapped image
                 title={room.roomNumber ? `Suite ${room.roomNumber}` : room.type} 
                 price={room.price} 
                 type={room.type}
@@ -457,13 +463,15 @@ const LocationSection = () => {
   const apiKey = "AIzaSyBp6AeE01WY__gSB8CWZNE-NBRRAF1I9qI"; 
   
   // URL for the static background image
-  const staticMapUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${coordinates}&zoom=15&size=800x600&maptype=roadmap&markers=color:red%7C${coordinates}&key=${apiKey}`;
+  // Added scale=2 for high-resolution (Retina) display to prevent blurriness
+  const staticMapUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${coordinates}&zoom=15&size=640x640&scale=2&maptype=roadmap&markers=color:red%7C${coordinates}&key=${apiKey}`;
 
   return (
     <section className="relative h-[600px] w-full bg-gray-100 flex items-center justify-center md:justify-start px-6 overflow-hidden">
       {/* Background Map Visual */}
       <div className="absolute inset-0 z-0">
           <div className="w-full h-full bg-[#e5e5e5] relative">
+               {/* Use img for better error handling and accessibility */}
                <img 
                  src={staticMapUrl} 
                  alt="Location Map of MPAATA Empire" 

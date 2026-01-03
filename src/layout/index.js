@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import { 
   Calendar, CreditCard, LogOut, User, ArrowRight, Menu, 
   TrendingUp, Users, Settings, Search, X, Loader2,
-  Home, Globe // <--- Added Globe icon
+  Home, Globe 
 } from 'lucide-react';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 
@@ -130,20 +130,36 @@ const DashboardLayout = ({ children }) => {
 
   if (!user) return <LoginScreen onLogin={handleGoogleLogin} isLoggingIn={isLoggingIn} />;
 
+  // 2. DEFINE MENU ITEMS BASED ON ROLE
   const isAdmin = ['admin', 'super_admin', 'manager'].includes(user.role);
+  const isReceptionist = user.role === 'receptionist';
   
-  // 2. UPDATED MENU ITEMS TO INCLUDE ROOMS
-  const menuItems = isAdmin ? [
-    { label: 'Dashboard', icon: TrendingUp, href: '/admin/dashboard' },
-    { label: 'Users', icon: Users, href: '/admin/users' },
-    { label: 'Rooms', icon: Home, href: '/admin/rooms' }, 
-    { label: 'Bookings', icon: Calendar, href: '/admin/bookings' },
-    { label: 'Payments', icon: CreditCard, href: '/admin/payments' },
-  ] : [
-    { label: 'My Bookings', icon: Calendar, href: '/bookings' },
-    { label: 'My Payments', icon: CreditCard, href: '/payments' },
-    { label: 'Profile', icon: User, href: '/profile' },
-  ];
+  let menuItems = [];
+
+  if (isAdmin) {
+    menuItems = [
+      { label: 'Dashboard', icon: TrendingUp, href: '/admin/dashboard' },
+      { label: 'Users', icon: Users, href: '/admin/users' },
+      { label: 'Rooms', icon: Home, href: '/admin/rooms' },
+      { label: 'Bookings', icon: Calendar, href: '/admin/bookings' },
+      { label: 'Payments', icon: CreditCard, href: '/admin/payments' },
+      { label: 'Settings', icon: Settings, href: '/admin/settings' },
+    ];
+  } else if (isReceptionist) {
+    // Receptionist Menu (Restricted Admin Layout)
+    menuItems = [
+      { label: 'Bookings', icon: Calendar, href: '/admin/bookings' },
+      { label: 'Rooms', icon: Home, href: '/admin/rooms' },
+      { label: 'Payments', icon: CreditCard, href: '/admin/payments' },
+    ];
+  } else {
+    // Client Menu (Fallback for sidebar view)
+    menuItems = [
+      { label: 'My Bookings', icon: Calendar, href: '/bookings' },
+      { label: 'My Payments', icon: CreditCard, href: '/payments' },
+      { label: 'Profile', icon: User, href: '/profile' },
+    ];
+  }
 
   return (
     <div className="h-screen bg-[#fcfbf7] flex font-sans text-gray-900 overflow-hidden">
@@ -201,6 +217,7 @@ const DashboardLayout = ({ children }) => {
             <input type="text" placeholder="Search..." className="bg-transparent border-none outline-none text-sm ml-2 w-full placeholder-gray-400" />
           </div>
           <div className="flex items-center gap-4">
+             {/* Replaced Bell with Visit Site */}
             <Link 
               href="/" 
               target="_blank" 

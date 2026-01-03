@@ -105,7 +105,6 @@ const PaymentsPage = () => {
     if (!method) return <Banknote size={14} className="text-gray-500" />;
     const m = method.toLowerCase();
     if (m.includes('mobile')) return <Smartphone size={14} className="text-purple-500" />;
-    if (m.includes('visa')) return <CreditCard size={14} className="text-blue-500" />;
     return <Banknote size={14} className="text-green-500" />;
   };
 

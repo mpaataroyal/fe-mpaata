@@ -489,7 +489,7 @@ const BookingsPage = () => {
                   
                   {/* Tabs */}
                   <div className="flex bg-gray-100 p-1 rounded-[2px] mb-4">
-                    {['Mobile Money', 'Visa', 'Cash'].map((method) => (
+                    {['Mobile Money', 'Cash'].map((method) => (
                       <button
                         key={method}
                         type="button"
@@ -522,13 +522,6 @@ const BookingsPage = () => {
                             className="w-full px-3 py-2 border border-gray-200 rounded-[2px] text-sm"
                           />
                         </div>
-                      </div>
-                    )}
-
-                    {formData.paymentMethod === 'Visa' && (
-                      <div className="text-center py-4">
-                        <CreditCard className="mx-auto text-[#1890ff] mb-2" size={32} />
-                        <p className="text-sm text-gray-600">Secure link will be generated.</p>
                       </div>
                     )}
 

@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   Calendar, CreditCard, LogOut, Plus, Search, 
-  User, CheckCircle, AlertCircle, X, ChevronDown, 
+  User, CheckCircle, AlertCircle, X, ChevronDown, ChevronLeft, ChevronRight,
   Loader2, DollarSign, Phone, ArrowRight, Menu,
   Wifi, Tv, Wind, Maximize, Filter, Home, AlertTriangle, RefreshCw
 } from 'lucide-react';
@@ -14,9 +14,53 @@ import { api } from '@/libs/apiAgent';
 
 /**
  * MPAATA EMPIRE - CLIENT DASHBOARD
- * Layout: Top Navigation (Style match with Rooms Page)
- * Features: My Bookings, Payments, Room Browsing with Filters
+ * Layout: Top Navigation
+ * Features: My Bookings, Payments, Room Browsing
  */
+
+// --- Constants ---
+const ROOM_GALLERIES = {
+  'ROYAL 1': [
+    "royal.jpg",
+    "royal1.jpg",
+    "royal3.jpg",
+    "royal4.jpg",
+    "royal5.jpg",
+    "royal6.jpg",
+    "royal_bath.jpg"
+  ],
+  'ROYAL 2': [
+    "/royal2/royal_2.webp",
+    "/royal2/royal_21.webp",
+    "/royal2/royal_22.webp",
+    "/royal2/royal_23.webp",
+  ],
+  'TWIN SUIT': [
+    "twin1.jpg",
+    "twin2.jpg",
+    "royal_bath.jpg"
+  ],
+  'STANDARD SUIT': [
+    "suit1.jpg",
+    "suit.jpg",
+    "suit22.jpg",
+    "suit33.jpg",
+    "suit2.jpg",
+    "suit3.jpg",
+    "suit4.jpg"
+  ],
+  'DELUXY SUIT': [
+    "suit1.jpg",
+    "suit.jpg",
+    "suit22.jpg",
+    "suit33.jpg",
+    "suit2.jpg",
+    "suit3.jpg",
+    "suit4.jpg"
+  ],
+};
+
+const DEFAULT_ROOM_IMAGE = "https://images.unsplash.com/photo-1618773928121-c32242e63f39?q=80&w=2070&auto=format&fit=crop";
 
 // --- Components ---
 
@@ -68,6 +112,74 @@ const Input = ({ label, icon: Icon, error, ...props }) => (
   </div>
 );
 
+const RoomCard = ({ room, onBook }) => {
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const images = ROOM_GALLERIES[room.type] || [DEFAULT_ROOM_IMAGE];
+
+  const nextImage = (e) => {
+    e.stopPropagation();
+    setCurrentImageIndex((prev) => (prev + 1) % images.length);
+  };
+
+  const prevImage = (e) => {
+    e.stopPropagation();
+    setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length);
+  };
+
+  return (
+    <div className="bg-white rounded-[2px] border border-gray-100 hover:border-[#D4AF37] transition-all shadow-sm overflow-hidden group flex flex-col">
+      <div className="h-48 bg-gray-200 relative overflow-hidden">
+        {/* Placeholder Image Logic */}
+        <div className="absolute inset-0 bg-[#0F2027]/10 group-hover:bg-transparent transition-colors z-10 pointer-events-none"></div>
+        <img 
+          src={images[currentImageIndex]} 
+          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
+          alt={room.type} 
+        />
+        
+        {/* Carousel Buttons */}
+        {images.length > 1 && (
+          <>
+            <div className="absolute inset-y-0 left-0 flex items-center pl-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button onClick={prevImage} className="bg-white/80 p-1 rounded-full hover:bg-white text-[#0F2027] shadow-md transition-all">
+                <ChevronLeft size={16} />
+              </button>
+            </div>
+            <div className="absolute inset-y-0 right-0 flex items-center pr-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button onClick={nextImage} className="bg-white/80 p-1 rounded-full hover:bg-white text-[#0F2027] shadow-md transition-all">
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </>
+        )}
+
+        <span className={`absolute top-3 right-3 px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded-sm z-20 ${room.status === 'Available' ? 'bg-[#D4AF37] text-[#0F2027]' : 'bg-gray-200 text-gray-500'}`}>
+           {room.status}
+        </span>
+      </div>
+      <div className="p-6 flex flex-col flex-1">
+        <div className="flex justify-between items-start mb-2">
+          <h3 className="font-serif text-lg text-[#0F2027]">{room.type}</h3>
+          <span className="font-bold text-[#D4AF37]">UGX {room.price?.toLocaleString()}</span>
+        </div>
+        <p className="text-xs text-gray-400 mb-4">Room {room.roomNumber}</p>
+        <div className="flex gap-2 mb-6 flex-wrap">
+          {room.amenities?.slice(0,3).map(a => (
+            <span key={a} className="text-[10px] bg-gray-50 border border-gray-100 px-2 py-1 rounded text-gray-600">{a}</span>
+          ))}
+        </div>
+        <button 
+          onClick={() => onBook(room)}
+          disabled={room.status !== 'Available'}
+          className="mt-auto w-full py-2 bg-[#0F2027] text-white text-xs uppercase tracking-widest font-bold hover:bg-[#203A43] disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {room.status === 'Available' ? 'Book Now' : 'Unavailable'}
+        </button>
+      </div>
+    </div>
+  );
+};
+
 // --- Login Screen ---
 const LoginScreen = ({ onLogin, loading }) => (
   <div className="min-h-screen flex items-center justify-center bg-[#fcfbf7] relative overflow-hidden font-sans">
@@ -118,7 +230,7 @@ const Dashboard = () => {
 
   // Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [bookingLoading, setBookingLoading] = useState(false); // <--- Added loading state for booking
+  const [bookingLoading, setBookingLoading] = useState(false);
   const [formData, setFormData] = useState({ 
     roomId: '', 
     checkIn: '', 
@@ -173,11 +285,10 @@ const Dashboard = () => {
 
   const loadData = async (uid) => {
     try {
-      // Parallel fetch using getMine for user-specific data
       const [bookingsRes, roomsRes, paymentsRes] = await Promise.all([
-        api.bookings.getMine(), // Fetches only user's bookings
+        api.bookings.getMine(), 
         api.rooms.getAll(),
-        api.payments.getMine()  // Fetches only user's payments
+        api.payments.getMine()
       ]);
       
       const roomData = roomsRes.data || roomsRes.rooms || [];
@@ -240,7 +351,7 @@ const Dashboard = () => {
         amount: payment.amount
       });
       alert('Payment prompt sent to your phone.');
-      await loadData(user.uid); // Refresh to show new pending transaction
+      await loadData(user.uid); 
     } catch (error) {
       console.error(error);
       alert('Retry failed. Please try again later.');
@@ -277,15 +388,13 @@ const Dashboard = () => {
   }, [roomFilter, occupantsFilter, rooms]);
 
   const handleBookRoom = (room) => {
-    // --- DATE PREFILL LOGIC ---
     const now = new Date();
-    // Adjust to local ISO string for input
     const tzOffset = now.getTimezoneOffset() * 60000;
-    const checkIn = new Date(now - tzOffset).toISOString().slice(0, 16); // YYYY-MM-DDTHH:mm
+    const checkIn = new Date(now - tzOffset).toISOString().slice(0, 16); 
     
     const tomorrow = new Date(now);
     tomorrow.setDate(tomorrow.getDate() + 1);
-    const checkOutDate = tomorrow.toISOString().slice(0, 10); // YYYY-MM-DD
+    const checkOutDate = tomorrow.toISOString().slice(0, 10); 
 
     setFormData({ 
       roomId: room.id || room._id, 
@@ -300,20 +409,19 @@ const Dashboard = () => {
 
   const handleSubmitBooking = async (e) => {
     e.preventDefault();
-    setBookingLoading(true); // <--- START LOADING
+    setBookingLoading(true); 
     try {
-      // --- FIXED CHECKOUT LOGIC ---
       const checkOut = `${formData.checkOutDate}T10:00:00`;
 
       await api.bookings.create({
         ...formData,
         checkOut,
         userId: user.uid,
-        guestName: user.name, // Use logged-in user name automatically
+        guestName: user.name, 
         guestPhone: formData.phone,
         status: 'pending'
       });
-      await loadData(user.uid); // <--- REFETCH DATA
+      await loadData(user.uid); 
       setIsModalOpen(false);
       alert('Booking request sent successfully!');
     } catch (error) {
@@ -321,7 +429,7 @@ const Dashboard = () => {
       const msg = error.response?.data?.error || 'Failed to create booking';
       alert(msg);
     } finally {
-      setBookingLoading(false); // <--- STOP LOADING
+      setBookingLoading(false);
     }
   };
 
@@ -487,35 +595,11 @@ const Dashboard = () => {
             {/* Room Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredRooms.map(room => (
-                <div key={room.id || room._id} className="bg-white rounded-[2px] border border-gray-100 hover:border-[#D4AF37] transition-all shadow-sm overflow-hidden group flex flex-col">
-                  <div className="h-48 bg-gray-200 relative overflow-hidden">
-                     {/* Placeholder Image Logic */}
-                     <div className="absolute inset-0 bg-[#0F2027]/10 group-hover:bg-transparent transition-colors"></div>
-                     <img src={room.image || "https://images.unsplash.com/photo-1618773928121-c32242e63f39?q=80&w=2070&auto=format&fit=crop"} className="w-full h-full object-cover" alt="Room" />
-                     <span className="absolute top-3 right-3 bg-white/90 px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded-sm">
-                        {room.status}
-                     </span>
-                  </div>
-                  <div className="p-6 flex flex-col flex-1">
-                    <div className="flex justify-between items-start mb-2">
-                      <h3 className="font-serif text-lg text-[#0F2027]">{room.type}</h3>
-                      <span className="font-bold text-[#D4AF37]">UGX {room.price?.toLocaleString()}</span>
-                    </div>
-                    <p className="text-xs text-gray-400 mb-4">Room {room.roomNumber}</p>
-                    <div className="flex gap-2 mb-6 flex-wrap">
-                      {room.amenities?.slice(0,3).map(a => (
-                        <span key={a} className="text-[10px] bg-gray-50 border border-gray-100 px-2 py-1 rounded text-gray-600">{a}</span>
-                      ))}
-                    </div>
-                    <button 
-                      onClick={() => handleBookRoom(room)}
-                      disabled={room.status !== 'Available'}
-                      className="mt-auto w-full py-2 bg-[#0F2027] text-white text-xs uppercase tracking-widest font-bold hover:bg-[#203A43] disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {room.status === 'Available' ? 'Book Now' : 'Unavailable'}
-                    </button>
-                  </div>
-                </div>
+                 <RoomCard 
+                    key={room.id || room._id || room.key} 
+                    room={room} 
+                    onBook={handleBookRoom} 
+                 />
               ))}
             </div>
           </div>
@@ -592,6 +676,12 @@ const Dashboard = () => {
                             <span>{new Date(payment.date).toLocaleDateString()}</span>
                             <span>•</span>
                             <span className="capitalize">{payment.provider}</span>
+                            {payment.phone && (
+                                <>
+                                    <span>•</span>
+                                    <span>{payment.phone}</span>
+                                </>
+                            )}
                          </div>
                        </div>
                        <div className="text-right flex flex-col items-end gap-1">

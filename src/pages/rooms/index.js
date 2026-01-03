@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   Wifi, Tv, Wind, Maximize, CheckCircle, 
-  Menu, X, Phone, Mail, MapPin, ChevronRight, Star, 
+  Menu, X, Phone, Mail, MapPin, ChevronRight, ChevronLeft, Star, 
   Calendar, User, Filter, ArrowRight, Loader2, Search,
   LogOut, CreditCard
 } from 'lucide-react';
@@ -21,6 +21,48 @@ import { api } from '@/libs/apiAgent';
 const IMAGES = {
   hero: "https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?q=80&w=2070&auto=format&fit=crop",
   roomPlaceholder: "https://images.unsplash.com/photo-1618773928121-c32242e63f39?q=80&w=2070&auto=format&fit=crop"
+};
+
+// --- Room Gallery Mapping ---
+const ROOM_GALLERIES = {
+  'ROYAL 1': [
+    "royal.jpg",
+    "royal1.jpg",
+    "royal3.jpg",
+    "royal4.jpg",
+    "royal5.jpg",
+    "royal6.jpg",
+    "royal_bath.jpg"
+  ],
+  'ROYAL 2': [
+    "/royal2/royal_2.webp",
+    "/royal2/royal_21.webp",
+    "/royal2/royal_22.webp",
+    "/royal2/royal_23.webp",
+  ],
+  'TWIN SUIT': [
+    "twin1.jpg",
+    "twin2.jpg",
+    "royal_bath.jpg"
+  ],
+  'STANDARD SUIT': [
+    "suit1.jpg",
+    "suit.jpg",
+    "suit22.jpg",
+    "suit33.jpg",
+    "suit2.jpg",
+    "suit3.jpg",
+    "suit4.jpg"
+  ],
+  'DELUXY SUIT': [
+    "suit1.jpg",
+    "suit.jpg",
+    "suit22.jpg",
+    "suit33.jpg",
+    "suit2.jpg",
+    "suit3.jpg",
+    "suit4.jpg"
+  ],
 };
 
 // --- Helper: Estimate Capacity ---
@@ -91,9 +133,14 @@ const Navbar = () => {
     router.refresh();
   };
 
-  const isAdmin = ['admin', 'super_admin', 'manager'].includes(userRole);
+  const isAdmin = ['admin', 'super_admin', 'manager','receptionist'].includes(userRole);
 
-  const navigateToDashboard = () => {
+  const getDashboardLink = () => {
+    if (userRole === 'receptionist') return '/admin/bookings';
+    return isAdmin ? '/admin/dashboard' : '/my';
+  };
+
+  const navigateToDashboard = (tab) => {
     router.push('/my'); 
     setDropdownOpen(false);
   };
@@ -123,7 +170,7 @@ const Navbar = () => {
             isAdmin ? (
               // ADMIN VIEW
               <Button 
-                onClick={() => router.push('/admin/dashboard')}
+                onClick={() => router.push(getDashboardLink())}
                 type="primary" 
                 className="uppercase text-xs px-6 py-2.5"
               >
@@ -196,55 +243,80 @@ const Navbar = () => {
 
       {/* Mobile Menu */}
       {mobileMenuOpen && (
-        <div className="absolute top-full left-0 w-full bg-white border-t border-gray-100 shadow-lg p-6 flex flex-col gap-4 md:hidden">
-           <a href="/" className="text-[#0F2027] font-serif text-lg">Home</a>
-           <a href="/rooms" className="text-[#0F2027] font-serif text-lg">Royal Suits</a>
-           {user ? (
-             <>
-               <div className="h-px bg-gray-100 my-2"></div>
-               <div className="flex items-center gap-3">
-                  {user.photoURL ? (
-                    <img src={user.photoURL} alt="Profile" className="w-8 h-8 rounded-full border border-gray-200" />
-                  ) : (
-                    <div className="w-8 h-8 rounded-full bg-[#0F2027] text-[#D4AF37] flex items-center justify-center font-bold text-xs">
-                      {user.displayName?.[0] || 'U'}
-                    </div>
-                  )}
-                  <span className="font-bold text-[#0F2027]">{user.displayName}</span>
-               </div>
-               {isAdmin ? (
-                 <Button onClick={() => router.push('/admin/dashboard')} type="primary" className="w-full">Access Dashboard</Button>
-               ) : (
-                 <Button onClick={navigateToDashboard} type="primary" className="w-full">My Dashboard</Button>
-               )}
-               <button onClick={handleLogout} className="text-left text-sm text-red-500 font-bold">Sign Out</button>
-             </>
-           ) : (
-             <button onClick={handleLogin} className="mt-2 w-full bg-[#0F2027] text-[#D4AF37] py-3 font-bold uppercase tracking-widest text-xs">
-               Login / Book Now
-             </button>
-           )}
+        <div className="absolute top-full left-0 w-full bg-white text-[#0F2027] shadow-xl p-8 flex flex-col gap-6 md:hidden border-t border-gray-100">
+          <Link href="/" className="text-lg font-serif border-b border-gray-100 pb-2 hover:text-[#D4AF37]">Home</Link>
+          <Link href="/rooms" className="text-lg font-serif border-b border-gray-100 pb-2 hover:text-[#D4AF37]">Royal Suits</Link>
+          
+          {user ? (
+            <>
+              <div className="flex items-center gap-3 py-2">
+                <div className="w-8 h-8 rounded-full bg-[#0F2027] text-[#D4AF37] flex items-center justify-center font-bold text-xs">
+                  {user.displayName?.[0] || 'U'}
+                </div>
+                <span className="font-bold">{user.displayName}</span>
+              </div>
+              <Button onClick={() => router.push(getDashboardLink())} type="primary" className="w-full">
+                {isAdmin ? 'Access Dashboard' : 'My Dashboard'}
+              </Button>
+              <button onClick={handleLogout} className="text-left text-red-500 font-bold text-sm">Sign Out</button>
+            </>
+          ) : (
+            <div className="space-y-4 pt-2">
+              <button onClick={handleLogin} className="w-full text-left font-bold uppercase tracking-widest text-xs hover:text-[#D4AF37]">Login</button>
+              <Button onClick={handleLogin} type="primary" className="w-full">Book Royal Stay</Button>
+            </div>
+          )}
         </div>
       )}
     </nav>
   );
 };
 
-const RoomCard = ({ room }) => {
+// --- Room Card (Carousel) ---
+const RoomCard = ({ type, price, title, onClick }) => {
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  // Default to placeholder if specific gallery not found
+  const images = ROOM_GALLERIES[type] || [IMAGES.roomPlaceholder];
+
+  const nextImage = (e) => {
+    e.stopPropagation();
+    setCurrentImageIndex((prev) => (prev + 1) % images.length);
+  };
+
+  const prevImage = (e) => {
+    e.stopPropagation();
+    setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length);
+  };
+
   return (
-    <div className="group bg-white rounded-[2px] shadow-sm hover:shadow-xl transition-all duration-500 overflow-hidden flex flex-col h-full border border-gray-100 hover:border-[#D4AF37]">
+    <div className="group bg-white rounded-[2px] shadow-sm hover:shadow-xl transition-all duration-500 overflow-hidden flex flex-col h-full border border-gray-100 hover:border-[#D4AF37]" onClick={onClick}>
       {/* Image */}
       <div className="relative h-64 overflow-hidden bg-gray-100">
-        <div className="absolute inset-0 bg-[#0F2027]/10 group-hover:bg-transparent transition-colors z-10"></div>
+        <div className="absolute inset-0 bg-[#0F2027]/10 group-hover:bg-transparent transition-colors z-10 pointer-events-none"></div>
         <img 
-          src={room.image || IMAGES.roomPlaceholder} 
-          alt={room.type} 
-          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
+          src={images[currentImageIndex]} 
+          alt={title} 
+          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
         />
-        <div className="absolute top-4 right-4 z-20">
-            <span className={`px-3 py-1 text-[10px] uppercase tracking-widest font-bold ${room.status === 'Available' ? 'bg-[#D4AF37] text-[#0F2027]' : 'bg-gray-200 text-gray-500'}`}>
-                {room.status}
-            </span>
+
+        {/* Carousel Buttons */}
+        {images.length > 1 && (
+            <>
+                <div className="absolute inset-y-0 left-0 flex items-center pl-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={prevImage} className="bg-white/80 p-1.5 rounded-full hover:bg-white text-[#0F2027] shadow-md transition-all">
+                        <ChevronLeft size={16} />
+                    </button>
+                </div>
+                <div className="absolute inset-y-0 right-0 flex items-center pr-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={nextImage} className="bg-white/80 p-1.5 rounded-full hover:bg-white text-[#0F2027] shadow-md transition-all">
+                        <ChevronRight size={16} />
+                    </button>
+                </div>
+            </>
+        )}
+
+        <div className="absolute bottom-6 left-6 z-20 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-500 transform translate-y-4 group-hover:translate-y-0 pointer-events-none">
+            <span className="bg-[#0F2027] text-[#D4AF37] text-xs uppercase tracking-widest px-4 py-2 rounded-[2px] shadow-lg">View Details</span>
         </div>
       </div>
 
@@ -253,15 +325,15 @@ const RoomCard = ({ room }) => {
         <div className="flex justify-between items-start mb-4">
             <div>
                 <h3 className="font-serif text-xl text-[#0F2027] mb-1 group-hover:text-[#D4AF37] transition-colors">
-                    {room.type}
+                    {type}
                 </h3>
                 <p className="text-xs text-gray-400 uppercase tracking-widest">
-                  Room {room.roomNumber} • {getCapacity(room)} Guests
+                  Room {title.replace('Suite ', '')} • {getCapacity({type})} Guests
                 </p>
             </div>
             <div className="text-right">
                 <span className="block font-serif text-lg text-[#D4AF37] font-bold">
-                    UGX {Number(room.price).toLocaleString()}
+                    UGX {Number(price).toLocaleString()}
                 </span>
                 <span className="text-[10px] text-gray-400 uppercase">Per Night</span>
             </div>
@@ -270,22 +342,15 @@ const RoomCard = ({ room }) => {
         <div className="w-12 h-[2px] bg-gray-100 group-hover:bg-[#D4AF37] transition-colors mb-6"></div>
 
         <p className="text-gray-500 text-sm leading-relaxed mb-6 line-clamp-2">
-            {room.description || "Experience the pinnacle of luxury in our meticulously designed suites, featuring satin blue accents and royal gold finishes."}
+            Experience the pinnacle of luxury in our meticulously designed suites, featuring satin blue accents and royal gold finishes.
         </p>
 
         {/* Amenities */}
         <div className="mb-8">
             <div className="flex flex-wrap gap-2">
-                {room.amenities && room.amenities.length > 0 ? (
-                    room.amenities.slice(0, 4).map((amenity, idx) => (
-                        <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#fcfbf7] border border-gray-200 rounded-[2px] text-xs text-gray-600">
-                            {getAmenityIcon(amenity)}
-                            {amenity}
-                        </span>
-                    ))
-                ) : (
-                    <span className="text-xs text-gray-400 italic">Standard amenities included</span>
-                )}
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#fcfbf7] border border-gray-200 rounded-[2px] text-xs text-gray-600"><Wifi size={12}/> Wifi</span>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#fcfbf7] border border-gray-200 rounded-[2px] text-xs text-gray-600"><Tv size={12}/> TV</span>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#fcfbf7] border border-gray-200 rounded-[2px] text-xs text-gray-600"><Wind size={12}/> AC</span>
             </div>
         </div>
 
@@ -451,7 +516,7 @@ const RoomsPage = () => {
         ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {filteredRooms.map((room) => (
-                    <RoomCard key={room.id || room._id || room.key} room={room} />
+                    <RoomCard key={room.id || room._id || room.key} type={room.type} title={room.roomNumber ? `Suite ${room.roomNumber}` : room.type} price={room.price} onClick={() => router.push('/rooms')} />
                 ))}
             </div>
         )}
