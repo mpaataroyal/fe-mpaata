@@ -25,9 +25,9 @@ const IMAGES = {
 const ROOM_TYPE_IMAGES = {
   'ROYAL 1': "royal1.webp", // Grand Luxury
   'ROYAL 2': "royal2.webp", // Modern Royal
-  'TWIN SUIT': "https://images.unsplash.com/photo-1566665797739-1674de7a421a?q=80&w=2074&auto=format&fit=crop", // Two Beds
+  'TWIN SUIT': "twin1.jpg", // Two Beds
   'STANDARD SUIT': "suit.jpg", // Cozy Standard
-  'DELUXY SUIT': "https://images.unsplash.com/photo-1618773928121-c32242e63f39?q=80&w=2070&auto=format&fit=crop", // Spacious Deluxe
+  'DELUXY SUIT': "suit.jpg", // Spacious Deluxe
 };
 
 // --- Components ---
