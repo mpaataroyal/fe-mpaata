@@ -142,8 +142,7 @@ const DashboardLayout = ({ children }) => {
       { label: 'Users', icon: Users, href: '/admin/users' },
       { label: 'Rooms', icon: Home, href: '/admin/rooms' },
       { label: 'Bookings', icon: Calendar, href: '/admin/bookings' },
-      { label: 'Payments', icon: CreditCard, href: '/admin/payments' },
-      { label: 'Settings', icon: Settings, href: '/admin/settings' },
+      { label: 'Payments', icon: CreditCard, href: '/admin/payments' }
     ];
   } else if (isReceptionist) {
     // Receptionist Menu (Restricted Admin Layout)
