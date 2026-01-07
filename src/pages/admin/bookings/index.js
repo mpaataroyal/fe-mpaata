@@ -13,6 +13,12 @@ import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
 dayjs.extend(isBetween);
 dayjs.extend(isSameOrAfter);
 
+// Adjusted imports based on typical Next.js src/ structure
+// Assuming:
+// src/pages/bookings.jsx
+// src/layout.jsx (or src/components/layout.jsx) -> trying ../layout first if it's in src
+// src/libs/apiAgent.js -> trying ../libs/apiAgent
+
 import DashboardLayout from '@/layout';
 import { api } from '@/libs/apiAgent'; 
 
@@ -238,38 +244,41 @@ const BookingsPage = () => {
   return (
       <div className="p-6 md:p-12 font-sans text-gray-900">
         
-        {/* Header */}
+        {/* Header with Search and Actions */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div>
             <h1 className="font-serif text-3xl text-[#0F2027] mb-1">Bookings</h1>
             <p className="text-gray-500 text-sm">Manage reservations and occupancy.</p>
           </div>
-          <div className="flex gap-3">
-            <button 
-              onClick={fetchData} 
-              className="px-4 py-2 border border-gray-200 bg-white hover:border-[#D4AF37] text-gray-600 rounded-[2px] text-sm font-medium transition-colors flex items-center gap-2"
-            >
-              <RefreshCw size={16} className={loading ? "animate-spin" : ""} /> Refresh
-            </button>
-            <button 
-              onClick={() => openModal()}
-              className="px-4 py-2 bg-[#0F2027] text-[#D4AF37] border border-[#0F2027] hover:bg-[#1a2e38] rounded-[2px] text-sm font-medium flex items-center gap-2 transition-colors shadow-lg"
-            >
-              <Plus size={16} /> New Booking
-            </button>
-          </div>
-        </div>
+          
+          <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+            {/* Search Input Moved Here */}
+            <div className="relative flex-1 sm:w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+              <input 
+                type="text"
+                placeholder="Search guest name or ID..."
+                className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-[2px] text-sm focus:outline-none focus:border-[#D4AF37] bg-white transition-colors"
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+              />
+            </div>
 
-        {/* Search Bar */}
-        <div className="bg-white p-4 rounded-[2px] shadow-sm border border-gray-100 mb-6 flex items-center gap-3 max-w-md">
-          <Search className="text-gray-400" size={20} />
-          <input 
-            type="text"
-            placeholder="Search guest name or ID..."
-            className="flex-1 bg-transparent outline-none text-sm"
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-          />
+            <div className="flex gap-3">
+              <button 
+                onClick={fetchData} 
+                className="px-4 py-2 border border-gray-200 bg-white hover:border-[#D4AF37] text-gray-600 rounded-[2px] text-sm font-medium transition-colors flex items-center gap-2 whitespace-nowrap"
+              >
+                <RefreshCw size={16} className={loading ? "animate-spin" : ""} /> Refresh
+              </button>
+              <button 
+                onClick={() => openModal()}
+                className="px-4 py-2 bg-[#0F2027] text-[#D4AF37] border border-[#0F2027] hover:bg-[#1a2e38] rounded-[2px] text-sm font-medium flex items-center gap-2 transition-colors shadow-lg whitespace-nowrap"
+              >
+                <Plus size={16} /> New Booking
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Table */}

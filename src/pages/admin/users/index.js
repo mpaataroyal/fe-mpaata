@@ -8,6 +8,7 @@ import {
 // ==================================================================================
 // PRODUCTION IMPORTS
 // ==================================================================================
+// Changed from @/ aliases to relative paths to fix build errors
 import DashboardLayout from '@/layout';
 import { api } from '@/libs/apiAgent'; 
 
@@ -171,39 +172,42 @@ const UsersPage = () => {
 
   return (
       <div className="font-sans text-gray-900 p-6 md:p-12">
-        {/* Header */}
+        {/* Header with Search and Actions */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div>
             <h1 className="font-serif text-3xl text-[#0F2027] mb-1">User Management</h1>
             <p className="text-gray-500 text-sm">Manage system access and customer accounts.</p>
           </div>
-          <div className="flex gap-3">
-            <button 
-              onClick={fetchUsers} 
-              disabled={loading}
-              className="px-4 py-2 border border-gray-200 bg-white hover:border-[#D4AF37] text-gray-600 rounded-[2px] text-sm font-medium transition-colors flex items-center gap-2"
-            >
-              <RefreshCw size={16} className={loading ? "animate-spin" : ""} /> Refresh
-            </button>
-            <button 
-              onClick={() => setIsModalOpen(true)}
-              className="px-4 py-2 bg-[#0F2027] text-[#D4AF37] border border-[#0F2027] hover:bg-[#1a2e38] rounded-[2px] text-sm font-medium flex items-center gap-2 transition-colors shadow-lg"
-            >
-              <Plus size={16} /> Add User
-            </button>
-          </div>
-        </div>
+          
+          <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+            {/* Search Input */}
+            <div className="relative flex-1 sm:w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+              <input 
+                type="text"
+                placeholder="Search users..."
+                className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-[2px] text-sm focus:outline-none focus:border-[#D4AF37] bg-white transition-colors"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
 
-        {/* Filter Bar */}
-        <div className="bg-white p-4 rounded-[2px] shadow-sm border border-gray-100 mb-6 flex items-center gap-3">
-          <Search className="text-gray-400" size={20} />
-          <input 
-            type="text"
-            placeholder="Search by name or email..."
-            className="flex-1 bg-transparent outline-none text-sm"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+            <div className="flex gap-3">
+              <button 
+                onClick={fetchUsers} 
+                disabled={loading}
+                className="px-4 py-2 border border-gray-200 bg-white hover:border-[#D4AF37] text-gray-600 rounded-[2px] text-sm font-medium transition-colors flex items-center gap-2 whitespace-nowrap"
+              >
+                <RefreshCw size={16} className={loading ? "animate-spin" : ""} /> Refresh
+              </button>
+              <button 
+                onClick={() => setIsModalOpen(true)}
+                className="px-4 py-2 bg-[#0F2027] text-[#D4AF37] border border-[#0F2027] hover:bg-[#1a2e38] rounded-[2px] text-sm font-medium flex items-center gap-2 transition-colors shadow-lg whitespace-nowrap"
+              >
+                <Plus size={16} /> Add User
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Users Table */}

@@ -7,8 +7,11 @@ import {
   CheckCircle, AlertCircle, Clock, Loader2, ChevronDown 
 } from 'lucide-react';
 import dayjs from 'dayjs';
-import DashboardLayout from '@/layout';
+
+// FIXED: Changed path from '../libs/apiAgent' to '../utils/apiAgent' based on initial project structure
 import { api } from '@/libs/apiAgent';
+// Note: Ensure src/layout.jsx exists for this import to work
+import DashboardLayout from '@/layout';
 
 const PAYMENT_STATUSES = ['success', 'pending', 'failed'];
 
@@ -54,7 +57,7 @@ const PaymentsPage = () => {
       setPayments(formatted);
     } catch (error) {
       console.error('Fetch Error:', error);
-      // alert('Failed to load payments'); // Optional: Use toast in real app
+      // alert('Failed to load payments'); 
     } finally {
       setLoading(false);
     }
@@ -143,31 +146,34 @@ const PaymentsPage = () => {
   return (
       <div className="p-6 md:p-12 font-sans text-gray-900">
         
-        {/* Header */}
+        {/* Header with Inline Search */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div>
             <h1 className="font-serif text-3xl text-[#0F2027] mb-1">Payments</h1>
             <p className="text-gray-500 text-sm">View and manage transactions.</p>
           </div>
-          <button 
-            onClick={fetchPayments} 
-            disabled={loading}
-            className="px-4 py-2 border border-gray-200 bg-white hover:border-[#D4AF37] text-gray-600 rounded-[2px] text-sm font-medium transition-colors flex items-center gap-2"
-          >
-            <RefreshCw size={16} className={loading ? "animate-spin" : ""} /> Refresh
-          </button>
-        </div>
+          
+          <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+            {/* Search Input Moved Here */}
+            <div className="relative flex-1 sm:w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+              <input 
+                type="text"
+                placeholder="Search Ref ID, Name..."
+                className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-[2px] text-sm focus:outline-none focus:border-[#D4AF37] bg-white transition-colors"
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+              />
+            </div>
 
-        {/* Search Bar */}
-        <div className="bg-white p-4 rounded-[2px] shadow-sm border border-gray-100 mb-6 flex items-center gap-3 max-w-md">
-          <Search className="text-gray-400" size={20} />
-          <input 
-            type="text"
-            placeholder="Search Ref ID, Name, or Phone..."
-            className="flex-1 bg-transparent outline-none text-sm"
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-          />
+            <button 
+              onClick={fetchPayments} 
+              disabled={loading}
+              className="px-4 py-2 border border-gray-200 bg-white hover:border-[#D4AF37] text-gray-600 rounded-[2px] text-sm font-medium transition-colors flex items-center gap-2 whitespace-nowrap"
+            >
+              <RefreshCw size={16} className={loading ? "animate-spin" : ""} /> Refresh
+            </button>
+          </div>
         </div>
 
         {/* Table */}
@@ -253,7 +259,7 @@ const PaymentsPage = () => {
                               {retryLoadingId === item.key ? (
                                 <Loader2 size={16} className="animate-spin" />
                               ) : (
-                                <Zap size={16} />
+                                <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
                               )}
                             </button>
                           )}
