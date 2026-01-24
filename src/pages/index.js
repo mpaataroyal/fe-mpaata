@@ -33,7 +33,7 @@ import { api } from '@/libs/apiAgent';
 // --- Design Assets ---
 const IMAGES = {
   hero: 'hero_bg.webp',
-  pool: 'royal2.webp',
+  pool: 'royal.webp',
   mapPlaceholder:
     'https://images.unsplash.com/photo-1524661135-423995f22d0b?q=80&w=2074&auto=format&fit=crop',
   roomPlaceholder:
