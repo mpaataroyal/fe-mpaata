@@ -14,38 +14,56 @@ import { auth, googleProvider } from '@/libs/firebase';
 import { api } from '@/libs/apiAgent';
 
 // --- Login Screen Component ---
-const LoginScreen = ({ onLogin, isLoggingIn }) => (
-  <div className="min-h-screen flex items-center justify-center bg-[#fcfbf7] relative overflow-hidden font-sans">
-    <div className="absolute inset-0 z-0 opacity-10" style={{ backgroundImage: 'radial-gradient(#D4AF37 1px, transparent 1px)', backgroundSize: '30px 30px' }}></div>
-    <div className="w-full max-w-md bg-white p-8 md:p-12 shadow-2xl relative z-10 border-t-4 border-[#D4AF37]">
-      <div className="text-center mb-10">
-        <div className="w-12 h-12 border-2 border-[#0F2027] flex items-center justify-center mx-auto mb-4">
-          <span className="font-serif text-2xl text-[#0F2027]">M</span>
+const LoginScreen = ({ onLogin, isLoggingIn }) => {
+  const [logoError, setLogoError] = useState(false);
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-[#fcfbf7] relative overflow-hidden font-sans">
+      <div className="absolute inset-0 z-0 opacity-10" style={{ backgroundImage: 'radial-gradient(#D4AF37 1px, transparent 1px)', backgroundSize: '30px 30px' }}></div>
+      <div className="w-full max-w-md bg-white p-8 md:p-12 shadow-2xl relative z-10 border-t-4 border-[#D4AF37]">
+        <div className="text-center mb-10">
+          
+          {/* Logo with Fallback */}
+          <div className="flex items-center justify-center mx-auto mb-4">
+            {!logoError ? (
+              <img 
+                src="/logo.webp" 
+                alt="Mpaata Logo" 
+                className="w-16 h-16 object-contain" 
+                onError={() => setLogoError(true)}
+              />
+            ) : (
+              <div className="w-12 h-12 border-2 border-[#0F2027] flex items-center justify-center">
+                <span className="font-serif text-2xl text-[#0F2027]">M</span>
+              </div>
+            )}
+          </div>
+
+          <h1 className="font-serif text-3xl text-[#0F2027] mb-2">Welcome Back</h1>
+          <p className="text-gray-500 text-sm">Sign in to access the Empire Dashboard</p>
         </div>
-        <h1 className="font-serif text-3xl text-[#0F2027] mb-2">Welcome Back</h1>
-        <p className="text-gray-500 text-sm">Sign in to access the Empire Dashboard</p>
+        <div className="space-y-3">
+          <button 
+            onClick={onLogin}
+            disabled={isLoggingIn}
+            className="w-full py-3 px-4 flex items-center justify-center gap-3 bg-[#0F2027] border border-[#0F2027] hover:brightness-110 transition-all rounded-[2px] group text-white disabled:opacity-70 disabled:cursor-not-allowed"
+          >
+            {isLoggingIn ? (
+              <Loader2 className="animate-spin text-[#D4AF37]" size={20} />
+            ) : (
+              <>
+                <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" className="w-5 h-5 bg-white rounded-full p-0.5" />
+                <span className="font-medium text-[#D4AF37]">Continue with Google</span>
+                <ArrowRight size={16} className="text-[#D4AF37] group-hover:translate-x-1 transition-transform ml-auto" />
+              </>
+            )}
+          </button>
+        </div>
+        <p className="text-center text-xs text-gray-400 mt-8">Secured by MPAATA Identity Service.</p>
       </div>
-      <div className="space-y-3">
-        <button 
-          onClick={onLogin}
-          disabled={isLoggingIn}
-          className="w-full py-3 px-4 flex items-center justify-center gap-3 bg-[#0F2027] border border-[#0F2027] hover:brightness-110 transition-all rounded-[2px] group text-white disabled:opacity-70 disabled:cursor-not-allowed"
-        >
-          {isLoggingIn ? (
-            <Loader2 className="animate-spin text-[#D4AF37]" size={20} />
-          ) : (
-            <>
-              <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" className="w-5 h-5 bg-white rounded-full p-0.5" />
-              <span className="font-medium text-[#D4AF37]">Continue with Google</span>
-              <ArrowRight size={16} className="text-[#D4AF37] group-hover:translate-x-1 transition-transform ml-auto" />
-            </>
-          )}
-        </button>
-      </div>
-      <p className="text-center text-xs text-gray-400 mt-8">Secured by MPAATA Identity Service.</p>
     </div>
-  </div>
-);
+  );
+};
 
 // --- Layout Component ---
 const DashboardLayout = ({ children }) => {
@@ -54,6 +72,10 @@ const DashboardLayout = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  
+  // State to track if images fail to load
+  const [sidebarLogoError, setSidebarLogoError] = useState(false);
+  const [userAvatarError, setUserAvatarError] = useState(false);
 
   // 1. Monitor Auth State
   useEffect(() => {
@@ -167,7 +189,20 @@ const DashboardLayout = ({ children }) => {
       <aside className={`fixed md:relative w-64 bg-[#0F2027] text-white h-full z-40 transform transition-transform duration-300 ease-in-out shadow-2xl md:shadow-none flex flex-col ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         <div className="p-8 flex items-center justify-between border-b border-white/10 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 border border-[#D4AF37] flex items-center justify-center"><span className="font-serif font-bold text-[#D4AF37]">M</span></div>
+            {/* Sidebar Logo with Fallback */}
+            {!sidebarLogoError ? (
+              <img 
+                src="/logo.webp" 
+                alt="Mpaata Logo" 
+                className="w-10 h-10 object-contain" 
+                onError={() => setSidebarLogoError(true)}
+              />
+            ) : (
+              <div className="w-8 h-8 border border-[#D4AF37] flex items-center justify-center">
+                <span className="font-serif font-bold text-[#D4AF37]">M</span>
+              </div>
+            )}
+            
             <span className="font-serif tracking-widest font-bold">MPAATA</span>
           </div>
           <button onClick={() => setSidebarOpen(false)} className="md:hidden text-gray-400"><X size={20} /></button>
@@ -194,11 +229,26 @@ const DashboardLayout = ({ children }) => {
 
         <div className="p-4 border-t border-white/10 bg-[#0a161b] shrink-0">
           <div className="flex items-center gap-3 mb-4 px-2">
-            {user.photoURL ? (
-              <img src={user.photoURL} alt={user.name} className="w-10 h-10 rounded-full border border-[#D4AF37]" />
+            
+            {/* AVATAR LOGIC:
+                1. Check if photoURL exists AND no error has occurred yet.
+                2. If image loads, show it.
+                3. If image fails (onError), set error state to true.
+                4. If error state is true OR no photoURL, show Letter Avatar.
+            */}
+            {user.photoURL && !userAvatarError ? (
+              <img 
+                src={user.photoURL} 
+                alt={user.name} 
+                className="w-10 h-10 rounded-full border border-[#D4AF37] object-cover" 
+                onError={() => setUserAvatarError(true)}
+              />
             ) : (
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#D4AF37] to-[#F3E5AB] flex items-center justify-center text-[#0F2027] font-bold shadow-lg">{user.name ? user.name.charAt(0) : 'U'}</div>
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#D4AF37] to-[#F3E5AB] flex items-center justify-center text-[#0F2027] font-bold shadow-lg">
+                {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
+              </div>
             )}
+
             <div className="overflow-hidden">
               <p className="text-sm font-bold text-white truncate">{user.name}</p>
               <p className="text-[10px] text-[#D4AF37] uppercase tracking-wider">{user.role}</p>
@@ -216,7 +266,7 @@ const DashboardLayout = ({ children }) => {
             <input type="text" placeholder="Search..." className="bg-transparent border-none outline-none text-sm ml-2 w-full placeholder-gray-400" />
           </div>
           <div className="flex items-center gap-4">
-             {/* Replaced Bell with Visit Site */}
+             {/* Visit Site Button */}
             <Link 
               href="/" 
               target="_blank" 

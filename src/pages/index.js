@@ -10,7 +10,6 @@ import {
   Star,
   Calendar,
   User,
-  Search,
   MapPin,
   Phone,
   Mail,
@@ -25,6 +24,7 @@ import {
   ArrowRight,
   LogOut,
   CreditCard,
+  Coffee,
 } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from '@/libs/firebase';
@@ -32,23 +32,41 @@ import { api } from '@/libs/apiAgent';
 
 // --- Design Assets ---
 const IMAGES = {
-  hero: 'hero_bg.png',
-  pool: 'display.webp',
-  // Fallback map image if API key fails
+  hero: 'hero_bg.webp',
+  pool: 'royal2.webp',
   mapPlaceholder:
     'https://images.unsplash.com/photo-1524661135-423995f22d0b?q=80&w=2074&auto=format&fit=crop',
   roomPlaceholder:
     'https://images.unsplash.com/photo-1618773928121-c32242e63f39?q=80&w=2070&auto=format&fit=crop',
 };
 
-// --- Room Type Image Mapping ---
-const ROOM_TYPE_IMAGES = {
-  'ROYAL 1': 'royal1.webp', // Grand Luxury
-  'ROYAL 2': 'royal2.webp', // Modern Royal
-  'TWIN SUITES': 'twin1.jpg', // Two Beds
-  'STANDARD SUITES': 'suit.jpg', // Cozy Standard
-  'DELUXE SUITES': 'suit.jpg', // Spacious Deluxe
-};
+// --- DATA FROM USER JSON ---
+const SHOWCASE_ROOMS = [
+  {
+    id: "5B73XBDnXjKyAo8Hxgxk",
+    type: "ROYAL 1",
+    price: 150000,
+    roomNumber: "ROYAL 1",
+    description: "Comfortable deluxe room on the first floor with air conditioning, a fridge. a television, a tea setup and access to wifi.",
+    image: "royal1.webp" 
+  },
+  {
+    id: "sv5Pa3CmQWbMvkCFkFsD",
+    type: "ROYAL 2",
+    price: 150000,
+    roomNumber: "ROYAL 2",
+    description: "Comfortable deluxe room on the first floor with air conditioning, a fridge. a television, a tea setup and access to wifi.",
+    image: "royal.webp"
+  },
+  {
+    id: "8MvOXfuseVdgVZdNuGf8",
+    type: "DELUXY SUIT",
+    price: 120000,
+    roomNumber: "M12",
+    description: "Comfortable deluxe room on the first floor with air conditioning, a fridge. a television, a tea setup and access to wifi.",
+    image: "balcony.webp"
+  }
+];
 
 // --- Components ---
 
@@ -59,7 +77,6 @@ const Button = ({ children, type = 'default', className = '', ...props }) => {
     primary: `bg-gradient-to-r from-[#0F2027] via-[#203A43] to-[#2C5364] text-[#D4AF37] hover:brightness-110 border border-[#D4AF37] shadow-lg`,
     ghost: `bg-transparent text-white border border-white hover:bg-white hover:text-[#0F2027]`,
     default: `bg-white text-gray-800 border border-[#d9d9d9] hover:border-[#D4AF37] hover:text-[#D4AF37]`,
-    link: `bg-transparent text-[#D4AF37] hover:text-[#B59024] underline-offset-4 hover:underline border-none px-0`,
   };
 
   return (
@@ -114,11 +131,6 @@ const Navbar = () => {
     userRole,
   );
 
-  const getDashboardLink = () => {
-    if (userRole === 'receptionist') return '/admin/bookings';
-    return isAdmin ? '/admin/dashboard' : '/my';
-  };
-
   const navigateToDashboard = (tab) => {
     router.push('/my');
     setDropdownOpen(false);
@@ -138,21 +150,15 @@ const Navbar = () => {
     >
       <div className="max-w-7xl mx-auto px-6 flex justify-between items-center">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2">
-          <div
-            className={`w-8 h-8 border-2 flex items-center justify-center ${
-              scrolled ? 'border-[#0F2027]' : 'border-white'
-            }`}
-          >
-            <span
-              className={`font-serif text-xl ${
-                scrolled ? 'text-[#0F2027]' : 'text-white'
-              }`}
-            >
-              M
-            </span>
-          </div>
-          <span className="font-serif text-xl md:text-2xl tracking-widest font-semibold uppercase">
+        <Link href="/" className="flex items-center gap-3">
+          <img 
+            src="/logo.webp" 
+            alt="Mpaata Logo" 
+            className="w-10 h-10 object-contain" 
+          />
+          <span className={`font-serif text-xl md:text-2xl tracking-widest font-semibold uppercase ${
+            scrolled ? 'text-[#0F2027]' : 'text-white'
+          }`}>
             MPAATA
           </span>
         </Link>
@@ -180,7 +186,7 @@ const Navbar = () => {
             isAdmin ? (
               // ADMIN VIEW
               <Button
-                onClick={() => router.push(getDashboardLink())}
+                onClick={() => router.push('/admin/dashboard')}
                 type={scrolled ? 'primary' : 'ghost'}
                 className="ml-4 uppercase text-xs px-6 py-2.5"
               >
@@ -321,7 +327,7 @@ const Navbar = () => {
                 <span className="font-bold">{user.displayName}</span>
               </div>
               <Button
-                onClick={() => router.push(getDashboardLink())}
+                onClick={() => router.push('/my')}
                 type="primary"
                 className="w-full"
               >
@@ -439,7 +445,6 @@ const Hero = () => {
               <option value="2">2 Guests</option>
               <option value="3">3 Guests</option>
               <option value="4">4 Guests</option>
-              <option value="5+">5+ Guests</option>
             </select>
           </div>
 
@@ -494,7 +499,7 @@ const IntroSection = () => (
   </section>
 );
 
-// --- Rooms Section (Dynamic) ---
+// --- Rooms Section (Dynamic from JSON) ---
 const RoomCard = ({ image, title, price, type, onClick }) => (
   <div className="group cursor-pointer" onClick={onClick}>
     <div className="relative overflow-hidden mb-6 aspect-[4/5] md:aspect-[3/4] border-b-4 border-transparent group-hover:border-[#D4AF37] transition-all bg-gray-100">
@@ -527,24 +532,9 @@ const RoomCard = ({ image, title, price, type, onClick }) => (
 );
 
 const RoomsSection = () => {
-  const [rooms, setRooms] = useState([]);
-  const [loading, setLoading] = useState(true);
   const router = useRouter();
-
-  useEffect(() => {
-    const fetchRooms = async () => {
-      try {
-        const response = await api.rooms.getAll();
-        const rawData = response.data || response.rooms || [];
-        setRooms(rawData.slice(0, 3));
-      } catch (error) {
-        console.error('Failed to fetch rooms for homepage', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchRooms();
-  }, []);
+  // Using hardcoded data from JSON as requested
+  const rooms = SHOWCASE_ROOMS;
 
   return (
     <section className="py-24 px-6 bg-white">
@@ -562,24 +552,18 @@ const RoomsSection = () => {
           </p>
         </div>
 
-        {loading ? (
-          <div className="flex justify-center py-20">
-            <Loader2 className="animate-spin text-[#D4AF37]" size={40} />
-          </div>
-        ) : (
-          <div className="grid md:grid-cols-3 gap-8">
-            {rooms.map((room) => (
-              <RoomCard
-                key={room.id || room._id}
-                image={ROOM_TYPE_IMAGES[room.type] || IMAGES.roomPlaceholder} // Use mapped image
-                title={room.roomNumber ? `Suite ${room.roomNumber}` : room.type}
-                price={room.price}
-                type={room.type}
-                onClick={() => router.push('/rooms')}
-              />
-            ))}
-          </div>
-        )}
+        <div className="grid md:grid-cols-3 gap-8">
+          {rooms.map((room) => (
+            <RoomCard
+              key={room.id}
+              image={room.image} 
+              title={room.roomNumber.replace('ROYAL', 'Royal Suite').replace('M', 'Suite M')}
+              price={room.price}
+              type={room.type}
+              onClick={() => router.push('/rooms')}
+            />
+          ))}
+        </div>
 
         <div className="text-center mt-16">
           <Link href="/rooms">
@@ -599,7 +583,7 @@ const RoomsSection = () => {
 // --- Amenities Section ---
 const Amenities = () => {
   const items = [
-    { icon: Star, title: 'Royal Service', desc: '24/7 Butler & Concierge' },
+    { icon: Coffee, title: 'Free Breakfast', desc: 'Daily Continental & Local' }, // REPLACED Royal Service
     { icon: Utensils, title: 'Restaurant', desc: 'Fine Dining Experience' },
     { icon: Wifi, title: 'Wifi', desc: 'High-Speed Internet' },
     { icon: Car, title: 'Parking', desc: 'Secure Valet Parking' },
@@ -612,7 +596,7 @@ const Amenities = () => {
 
   return (
     <section className="py-24 bg-gradient-to-br from-[#0F2027] to-[#203A43] text-white">
-      <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-12">
+      <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-8">
         {items.map((item, idx) => (
           <div
             key={idx}
@@ -642,24 +626,19 @@ const Amenities = () => {
 const LocationSection = () => {
   const coordinates = '1.428292,31.359560'; // Hoima coordinates
   const apiKey = 'AIzaSyBp6AeE01WY__gSB8CWZNE-NBRRAF1I9qI';
-
-  // URL for the static background image
-  // Added scale=2 for high-resolution (Retina) display to prevent blurriness
   const staticMapUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${coordinates}&zoom=15&size=640x640&scale=2&maptype=roadmap&markers=color:red%7C${coordinates}&key=${apiKey}`;
 
   return (
     <section className="relative h-[600px] w-full bg-gray-100 flex items-center justify-center md:justify-start px-6 overflow-hidden">
-      {/* Background Map Visual */}
       <div className="absolute inset-0 z-0">
         <div className="w-full h-full bg-[#e5e5e5] relative">
-          {/* Use img for better error handling and accessibility */}
           <img
             src={staticMapUrl}
             alt="Location Map of MPAATA Empire"
             className="absolute inset-0 w-full h-full object-cover opacity-60 grayscale"
             onError={(e) => {
               e.target.src = IMAGES.mapPlaceholder;
-            }} // Fallback if API key fails
+            }} 
           />
           <div className="absolute inset-0 bg-gradient-to-r from-white/70 via-white/30 to-transparent"></div>
         </div>
@@ -794,7 +773,7 @@ const Footer = () => (
     </div>
 
     <div className="max-w-7xl mx-auto px-6 border-t border-gray-100 pt-8 flex flex-col md:flex-row justify-between items-center text-xs text-gray-400 uppercase tracking-wider">
-      <p>&copy; 2026 MPAATA Empire. All Rights Reserved.</p>
+      <p>© 2026 MPAATA Empire. All Rights Reserved.</p>
       <div className="flex gap-6 mt-4 md:mt-0">
         <a href="#" className="hover:text-[#D4AF37]">
           Privacy Policy

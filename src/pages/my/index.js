@@ -40,45 +40,30 @@ import { api } from '@/libs/apiAgent';
  */
 
 // --- Constants ---
-const ROOM_GALLERIES = {
-  'ROYAL 1': [
-    'royal.jpg',
-    'royal1.jpg',
-    'royal3.jpg',
-    'royal4.jpg',
-    'royal5.jpg',
-    'royal6.jpg',
-    'royal_bath.jpg',
-  ],
-  'ROYAL 2': [
-    '/royal2/royal_2.webp',
-    '/royal2/royal_21.webp',
-    '/royal2/royal_22.webp',
-    '/royal2/royal_23.webp',
-  ],
-  'TWIN SUITES': ['twin1.jpg', 'twin2.jpg', 'royal_bath.jpg'],
-  'STANDARD SUITES': [
-    'suit1.jpg',
-    'suit.jpg',
-    'suit22.jpg',
-    'suit33.jpg',
-    'suit2.jpg',
-    'suit3.jpg',
-    'suit4.jpg',
-  ],
-  'DELUXE SUITES': [
-    'suit1.jpg',
-    'suit.jpg',
-    'suit22.jpg',
-    'suit33.jpg',
-    'suit2.jpg',
-    'suit3.jpg',
-    'suit4.jpg',
-  ],
+const DEFAULT_ROOM_IMAGE = 'suit.jpg';
+
+// --- Helper: Image Mapping Logic (Strict .webp) ---
+const getRoomImage = (room) => {
+  const roomNumStr = room.roomNumber?.toString() || '';
+  const num = parseInt(roomNumStr.replace(/\D/g, '') || '0');
+  const type = room.type?.toUpperCase() || '';
+  
+  if (roomNumStr === 'ROYAL 1') return 'royal1.webp';
+  if (roomNumStr === 'ROYAL 2') return 'royal.webp';
+  if (type === 'TWIN SUIT') return 'twin.webp';
+  if (num === 13) return '13.webp';
+  if ([12, 16, 17, 20].includes(num)) return 'balcony.webp';
+  if ([11, 14, 15, 18, 19].includes(num)) return '11_14_15_18_19.webp';
+  if (num >= 1 && num <= 9) return '123456789.webp';
+
+  return DEFAULT_ROOM_IMAGE;
 };
 
-const DEFAULT_ROOM_IMAGE =
-  'https://images.unsplash.com/photo-1618773928121-c32242e63f39?q=80&w=2070&auto=format&fit=crop';
+// --- Helper: Capacity Logic ---
+const getCapacity = (room) => {
+  if (room.capacity) return Math.min(room.capacity, 2);
+  return 2; 
+};
 
 // --- Components ---
 
@@ -155,52 +140,18 @@ const Input = ({ label, icon: Icon, error, ...props }) => (
   </div>
 );
 
-const RoomCard = ({ room, onBook }) => {
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const images = ROOM_GALLERIES[room.type] || [DEFAULT_ROOM_IMAGE];
-
-  const nextImage = (e) => {
-    e.stopPropagation();
-    setCurrentImageIndex((prev) => (prev + 1) % images.length);
-  };
-
-  const prevImage = (e) => {
-    e.stopPropagation();
-    setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length);
-  };
-
+// --- Room Card ---
+const RoomCard = ({ room, onBook, image }) => {
   return (
     <div className="bg-white rounded-[2px] border border-gray-100 hover:border-[#D4AF37] transition-all shadow-sm overflow-hidden group flex flex-col">
       <div className="h-48 bg-gray-200 relative overflow-hidden">
-        {/* Placeholder Image Logic */}
+        {/* Image */}
         <div className="absolute inset-0 bg-[#0F2027]/10 group-hover:bg-transparent transition-colors z-10 pointer-events-none"></div>
         <img
-          src={images[currentImageIndex]}
+          src={image}
           className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
           alt={room.type}
         />
-
-        {/* Carousel Buttons */}
-        {images.length > 1 && (
-          <>
-            <div className="absolute inset-y-0 left-0 flex items-center pl-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button
-                onClick={prevImage}
-                className="bg-white/80 p-1 rounded-full hover:bg-white text-[#0F2027] shadow-md transition-all"
-              >
-                <ChevronLeft size={16} />
-              </button>
-            </div>
-            <div className="absolute inset-y-0 right-0 flex items-center pr-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button
-                onClick={nextImage}
-                className="bg-white/80 p-1 rounded-full hover:bg-white text-[#0F2027] shadow-md transition-all"
-              >
-                <ChevronRight size={16} />
-              </button>
-            </div>
-          </>
-        )}
 
         <span
           className={`absolute top-3 right-3 px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded-sm z-20 ${
@@ -254,8 +205,9 @@ const LoginScreen = ({ onLogin, loading }) => (
     ></div>
     <div className="w-full max-w-md bg-white p-8 md:p-12 shadow-2xl relative z-10 border-t-4 border-[#D4AF37]">
       <div className="text-center mb-10">
-        <div className="w-12 h-12 border-2 border-[#0F2027] flex items-center justify-center mx-auto mb-4">
-          <span className="font-serif text-2xl text-[#0F2027]">M</span>
+        <div className="w-12 h-12 flex items-center justify-center mx-auto mb-4">
+           {/* Logo on Login Screen */}
+           <img src="/logo.webp" alt="Logo" className="w-12 h-12 object-contain" />
         </div>
         <h1 className="font-serif text-3xl text-[#0F2027] mb-2">
           Welcome Back
@@ -454,31 +406,22 @@ const Dashboard = () => {
   useEffect(() => {
     let result = rooms;
 
+    // Room Type Filter
     if (roomFilter === 'Balcony') {
       result = result.filter((r) =>
         r.amenities?.some((a) => a.toLowerCase().includes('balcony')),
       );
-    } else if (roomFilter === 'Ground Floor') {
-      result = result.filter(
-        (r) => r.roomNumber && r.roomNumber.toString().startsWith('1'),
-      );
-    } else if (roomFilter === 'First Floor') {
-      result = result.filter(
-        (r) => r.roomNumber && r.roomNumber.toString().startsWith('2'),
-      );
     }
 
+    // Occupants Filter (Max 2 Guests)
     if (occupantsFilter !== 'Any') {
-      const minGuests =
-        occupantsFilter === '4+' ? 4 : parseInt(occupantsFilter);
-      result = result.filter((r) => {
-        const type = r.type?.toLowerCase() || '';
-        let capacity = 2;
-        if (type.includes('family') || type.includes('penthouse')) capacity = 4;
-        else if (type.includes('triple')) capacity = 3;
-
-        return capacity >= minGuests;
-      });
+      if (occupantsFilter === '2') {
+         // Strict filter: If user selects 2 guests, ONLY show Twin Suits
+         result = result.filter(r => r.type === 'TWIN SUIT');
+      } else {
+         const minGuests = parseInt(occupantsFilter);
+         result = result.filter((r) => getCapacity(r) >= minGuests);
+      }
     }
 
     setFilteredRooms(result);
@@ -551,12 +494,14 @@ const Dashboard = () => {
         <div className="max-w-7xl mx-auto px-6 flex justify-between items-center">
           {/* Logo */}
           <div
-            className="flex items-center gap-2 cursor-pointer"
+            className="flex items-center gap-3 cursor-pointer"
             onClick={() => router.push('/')}
           >
-            <div className="w-8 h-8 border-2 border-[#0F2027] flex items-center justify-center">
-              <span className="font-serif text-xl text-[#0F2027]">M</span>
-            </div>
+            <img 
+              src="/logo.webp" 
+              alt="Mpaata Logo" 
+              className="w-10 h-10 object-contain" 
+            />
             <span className="font-serif text-xl md:text-2xl tracking-widest font-semibold uppercase hidden md:block">
               MPAATA
             </span>
@@ -695,17 +640,15 @@ const Dashboard = () => {
                 <select
                   value={occupantsFilter}
                   onChange={(e) => setOccupantsFilter(e.target.value)}
-                  className="bg-gray-50 border border-gray-200 text-sm rounded px-3 py-1.5 focus:border-[#D4AF37] outline-none"
+                  className="bg-gray-50 border border-gray-200 text-sm rounded px-3 py-1.5 focus:border-[#D4AF37] outline-none text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors"
                 >
                   <option value="Any">Any</option>
-                  <option value="1">1 Person</option>
-                  <option value="2">2 People</option>
-                  <option value="3">3 People</option>
-                  <option value="4+">Family (4+)</option>
+                  <option value="1">1 Guest</option>
+                  <option value="2">2 Guests</option>
                 </select>
               </div>
               <div className="flex gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0">
-                {['All', 'Balcony', 'Ground Floor', 'First Floor'].map(
+                {['All', 'Balcony'].map(
                   (filter) => (
                     <button
                       key={filter}
@@ -729,6 +672,7 @@ const Dashboard = () => {
                 <RoomCard
                   key={room.id || room._id || room.key}
                   room={room}
+                  image={getRoomImage(room)}
                   onBook={handleBookRoom}
                 />
               ))}
@@ -820,7 +764,6 @@ const Dashboard = () => {
 
             <div className="max-w-2xl mx-auto space-y-3 text-left">
               {payments.map((payment) => {
-                // Find associated room name if possible
                 const booking = bookings.find(
                   (b) => b.id === payment.bookingId,
                 );
@@ -828,7 +771,6 @@ const Dashboard = () => {
                   ? booking.roomName
                   : `Booking ${payment.bookingId?.slice(0, 6) || 'Ref'}`;
 
-                // Check if retry is applicable
                 const canRetry =
                   (payment.status === 'failed' ||
                     payment.status === 'pending') &&
@@ -907,7 +849,6 @@ const Dashboard = () => {
               Complete Booking
             </h2>
             <form onSubmit={handleSubmitBooking} className="space-y-4">
-              {/* Guest Name is implicit from login, Phone is required */}
               <div className="grid grid-cols-1 gap-4">
                 <Input
                   label="Your Contact Phone"
@@ -921,7 +862,6 @@ const Dashboard = () => {
                 />
               </div>
 
-              {/* Dates */}
               <div className="grid grid-cols-2 gap-4">
                 <Input
                   label="Check In (Date & Time)"
@@ -958,7 +898,6 @@ const Dashboard = () => {
                 </div>
               </div>
 
-              {/* Checkout Warning */}
               <div className="bg-amber-50 border border-amber-200 p-3 rounded-[2px] flex items-start gap-2">
                 <AlertTriangle
                   className="text-amber-600 mt-0.5 shrink-0"
@@ -970,7 +909,6 @@ const Dashboard = () => {
                 </p>
               </div>
 
-              {/* Payment Method */}
               <div className="pt-2 border-t border-gray-100 mt-2">
                 <label className="block text-xs uppercase tracking-widest text-gray-500 mb-3">
                   Payment Method
@@ -994,7 +932,6 @@ const Dashboard = () => {
                   ))}
                 </div>
 
-                {/* Payment Details Logic */}
                 {formData.paymentMethod === 'Mobile Money' && (
                   <div className="bg-gray-50 p-4 border border-gray-200 rounded-[2px]">
                     <Input

@@ -10,20 +10,14 @@ import {
   CheckCircle,
   Menu,
   X,
-  Phone,
-  Mail,
-  MapPin,
   ChevronRight,
-  ChevronLeft,
-  Star,
-  Calendar,
   User,
-  Filter,
   ArrowRight,
   Loader2,
   Search,
   LogOut,
   CreditCard,
+  Calendar,
 } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from '@/libs/firebase';
@@ -31,74 +25,35 @@ import { api } from '@/libs/apiAgent';
 
 /**
  * MPAATA EMPIRE - ROOMS PAGE
- * Public facing rooms listing with specific filters.
  */
 
 // --- Design Assets ---
 const IMAGES = {
   hero: 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?q=80&w=2070&auto=format&fit=crop',
-  roomPlaceholder:
-    'https://images.unsplash.com/photo-1618773928121-c32242e63f39?q=80&w=2070&auto=format&fit=crop',
+  defaultPlaceholder: 'suit.jpg',
 };
 
-// --- Room Gallery Mapping ---
-const ROOM_GALLERIES = {
-  'ROYAL 1': [
-    'royal.jpg',
-    'royal1.jpg',
-    'royal3.jpg',
-    'royal4.jpg',
-    'royal5.jpg',
-    'royal6.jpg',
-    'royal_bath.jpg',
-  ],
-  'ROYAL 2': [
-    '/royal2/royal_2.webp',
-    '/royal2/royal_21.webp',
-    '/royal2/royal_22.webp',
-    '/royal2/royal_23.webp',
-  ],
-  'TWIN SUITES': ['twin1.jpg', 'twin2.jpg', 'royal_bath.jpg'],
-  'STANDARD SUITES': [
-    'suit1.jpg',
-    'suit.jpg',
-    'suit22.jpg',
-    'suit33.jpg',
-    'suit2.jpg',
-    'suit3.jpg',
-    'suit4.jpg',
-  ],
-  'DELUXE SUITES': [
-    'suit1.jpg',
-    'suit.jpg',
-    'suit22.jpg',
-    'suit33.jpg',
-    'suit2.jpg',
-    'suit3.jpg',
-    'suit4.jpg',
-  ],
+// --- Helper: Image Mapping Logic (Strict .webp) ---
+const getRoomImage = (room) => {
+  const roomNumStr = room.roomNumber?.toString() || '';
+  const num = parseInt(roomNumStr.replace(/\D/g, '') || '0');
+  const type = room.type?.toUpperCase() || '';
+  
+  if (roomNumStr === 'ROYAL 1') return 'royal1.webp';
+  if (roomNumStr === 'ROYAL 2') return 'royal.webp';
+  if (type === 'TWIN SUIT') return 'twin.webp';
+  if (num === 13) return '13.webp';
+  if ([12, 16, 17, 20].includes(num)) return 'balcony.webp';
+  if ([11, 14, 15, 18, 19].includes(num)) return '11_14_15_18_19.webp';
+  if (num >= 1 && num <= 9) return '123456789.webp';
+
+  return IMAGES.defaultPlaceholder;
 };
 
-// --- Helper: Estimate Capacity ---
+// --- Helper: Capacity Logic ---
 const getCapacity = (room) => {
-  if (room.capacity) return room.capacity;
-  const type = room.type?.toLowerCase() || '';
-  if (type.includes('family') || type.includes('penthouse')) return 4;
-  if (type.includes('triple')) return 3;
-  if (type.includes('suite') || type.includes('deluxe')) return 2;
-  return 2; // Default
-};
-
-// --- Helper: Map Amenities to Icons ---
-const getAmenityIcon = (amenity) => {
-  const normalized = amenity.toLowerCase();
-  if (normalized.includes('wi-fi') || normalized.includes('wifi'))
-    return <Wifi size={14} />;
-  if (normalized.includes('tv')) return <Tv size={14} />;
-  if (normalized.includes('air') || normalized.includes('ac'))
-    return <Wind size={14} />;
-  if (normalized.includes('balcony')) return <Maximize size={14} />;
-  return <CheckCircle size={14} />;
+  if (room.capacity) return Math.min(room.capacity, 2);
+  return 2; 
 };
 
 // --- Components ---
@@ -110,7 +65,6 @@ const Button = ({ children, type = 'default', className = '', ...props }) => {
     primary: `bg-gradient-to-r from-[#0F2027] via-[#203A43] to-[#2C5364] text-[#D4AF37] hover:brightness-110 border border-[#D4AF37] shadow-lg`,
     ghost: `bg-transparent text-white border border-white hover:bg-white hover:text-[#0F2027]`,
     default: `bg-white text-gray-800 border border-[#d9d9d9] hover:border-[#D4AF37] hover:text-[#D4AF37]`,
-    link: `bg-transparent text-[#D4AF37] hover:text-[#B59024] underline-offset-4 hover:underline border-none px-0`,
   };
 
   return (
@@ -125,7 +79,7 @@ const Navbar = () => {
   const [user, setUser] = useState(null);
   const [userRole, setUserRole] = useState('client');
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const router = useRouter();
+  const router = useRouter(); 
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -159,7 +113,7 @@ const Navbar = () => {
     return isAdmin ? '/admin/dashboard' : '/my';
   };
 
-  const navigateToDashboard = (tab) => {
+  const navigateToDashboard = () => {
     router.push('/my');
     setDropdownOpen(false);
   };
@@ -171,14 +125,16 @@ const Navbar = () => {
   return (
     <nav className="fixed w-full z-50 bg-white/95 backdrop-blur-md shadow-sm py-4 text-[#0F2027]">
       <div className="max-w-7xl mx-auto px-6 flex justify-between items-center">
-        {/* Logo */}
+        {/* Logo with Image */}
         <div
-          className="flex items-center gap-2 cursor-pointer"
+          className="flex items-center gap-3 cursor-pointer"
           onClick={() => router.push('/')}
         >
-          <div className="w-8 h-8 border-2 border-[#0F2027] flex items-center justify-center">
-            <span className="font-serif text-xl text-[#0F2027]">M</span>
-          </div>
+          <img 
+            src="/logo.webp" 
+            alt="Mpaata Logo" 
+            className="w-10 h-10 object-contain" 
+          />
           <span className="font-serif text-xl md:text-2xl tracking-widest font-semibold uppercase">
             MPAATA
           </span>
@@ -301,18 +257,18 @@ const Navbar = () => {
       {/* Mobile Menu */}
       {mobileMenuOpen && (
         <div className="absolute top-full left-0 w-full bg-white text-[#0F2027] shadow-xl p-8 flex flex-col gap-6 md:hidden border-t border-gray-100">
-          <Link
+          <a
             href="/"
             className="text-lg font-serif border-b border-gray-100 pb-2 hover:text-[#D4AF37]"
           >
             Home
-          </Link>
-          <Link
+          </a>
+          <a
             href="/rooms"
             className="text-lg font-serif border-b border-gray-100 pb-2 hover:text-[#D4AF37]"
           >
             Royal Suits
-          </Link>
+          </a>
 
           {user ? (
             <>
@@ -355,22 +311,8 @@ const Navbar = () => {
   );
 };
 
-// --- Room Card (Carousel) ---
-const RoomCard = ({ type, price, title, onClick }) => {
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  // Default to placeholder if specific gallery not found
-  const images = ROOM_GALLERIES[type] || [IMAGES.roomPlaceholder];
-
-  const nextImage = (e) => {
-    e.stopPropagation();
-    setCurrentImageIndex((prev) => (prev + 1) % images.length);
-  };
-
-  const prevImage = (e) => {
-    e.stopPropagation();
-    setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length);
-  };
-
+// --- Room Card (Single Image) ---
+const RoomCard = ({ type, price, title, onClick, image, amenities }) => {
   return (
     <div
       className="group bg-white rounded-[2px] shadow-sm hover:shadow-xl transition-all duration-500 overflow-hidden flex flex-col h-full border border-gray-100 hover:border-[#D4AF37]"
@@ -380,32 +322,10 @@ const RoomCard = ({ type, price, title, onClick }) => {
       <div className="relative h-64 overflow-hidden bg-gray-100">
         <div className="absolute inset-0 bg-[#0F2027]/10 group-hover:bg-transparent transition-colors z-10 pointer-events-none"></div>
         <img
-          src={images[currentImageIndex]}
+          src={image}
           alt={title}
           className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
         />
-
-        {/* Carousel Buttons */}
-        {images.length > 1 && (
-          <>
-            <div className="absolute inset-y-0 left-0 flex items-center pl-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button
-                onClick={prevImage}
-                className="bg-white/80 p-1.5 rounded-full hover:bg-white text-[#0F2027] shadow-md transition-all"
-              >
-                <ChevronLeft size={16} />
-              </button>
-            </div>
-            <div className="absolute inset-y-0 right-0 flex items-center pr-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button
-                onClick={nextImage}
-                className="bg-white/80 p-1.5 rounded-full hover:bg-white text-[#0F2027] shadow-md transition-all"
-              >
-                <ChevronRight size={16} />
-              </button>
-            </div>
-          </>
-        )}
 
         <div className="absolute bottom-6 left-6 z-20 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-500 transform translate-y-4 group-hover:translate-y-0 pointer-events-none">
           <span className="bg-[#0F2027] text-[#D4AF37] text-xs uppercase tracking-widest px-4 py-2 rounded-[2px] shadow-lg">
@@ -422,8 +342,7 @@ const RoomCard = ({ type, price, title, onClick }) => {
               {type}
             </h3>
             <p className="text-xs text-gray-400 uppercase tracking-widest">
-              Room {title.replace('Suite ', '')} • {getCapacity({ type })}{' '}
-              Guests
+              Room {title.replace('Suite ', '').replace('Room ', '')} • {getCapacity({ type })} Guests
             </p>
           </div>
           <div className="text-right">
@@ -446,15 +365,16 @@ const RoomCard = ({ type, price, title, onClick }) => {
         {/* Amenities */}
         <div className="mb-8">
           <div className="flex flex-wrap gap-2">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#fcfbf7] border border-gray-200 rounded-[2px] text-xs text-gray-600">
-              <Wifi size={12} /> Wifi
-            </span>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#fcfbf7] border border-gray-200 rounded-[2px] text-xs text-gray-600">
-              <Tv size={12} /> TV
-            </span>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#fcfbf7] border border-gray-200 rounded-[2px] text-xs text-gray-600">
-              <Wind size={12} /> AC
-            </span>
+             {amenities?.slice(0, 3).map((amenity, index) => (
+               <span key={index} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#fcfbf7] border border-gray-200 rounded-[2px] text-xs text-gray-600">
+                 <CheckCircle size={12} /> {amenity}
+               </span>
+             ))}
+             {amenities?.length > 3 && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#fcfbf7] border border-gray-200 rounded-[2px] text-xs text-gray-600">
+                  +{amenities.length - 3} more
+                </span>
+             )}
           </div>
         </div>
 
@@ -490,13 +410,14 @@ const Footer = () => (
 // --- Page Component ---
 
 const RoomsPage = () => {
+  const router = useRouter(); // Defined correctly
   const [rooms, setRooms] = useState([]);
   const [filteredRooms, setFilteredRooms] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Filter States
-  const [activeFilter, setActiveFilter] = useState('All'); // 'All', 'Balcony', 'Ground Floor', 'First Floor'
-  const [occupants, setOccupants] = useState('Any'); // 'Any', '1', '2', '3', '4+'
+  const [activeFilter, setActiveFilter] = useState('All'); // 'All' or 'Balcony'
+  const [occupants, setOccupants] = useState('Any'); // 'Any', '1', '2'
 
   useEffect(() => {
     const fetchRooms = async () => {
@@ -524,20 +445,17 @@ const RoomsPage = () => {
       result = result.filter((r) =>
         r.amenities?.some((a) => a.toLowerCase().includes('balcony')),
       );
-    } else if (activeFilter === 'Ground Floor') {
-      result = result.filter(
-        (r) => r.roomNumber && r.roomNumber.toString().startsWith('1'),
-      );
-    } else if (activeFilter === 'First Floor') {
-      result = result.filter(
-        (r) => r.roomNumber && r.roomNumber.toString().startsWith('2'),
-      );
-    }
+    } 
 
     // 2. Filter by Occupants (Dropdown)
     if (occupants !== 'Any') {
-      const minGuests = occupants === '4+' ? 4 : parseInt(occupants);
-      result = result.filter((r) => getCapacity(r) >= minGuests);
+      if (occupants === '2') {
+         // Strict filter: If user selects 2 guests, ONLY show Twin Suits
+         result = result.filter(r => r.type === 'TWIN SUIT');
+      } else {
+         const minGuests = parseInt(occupants);
+         result = result.filter((r) => getCapacity(r) >= minGuests);
+      }
     }
 
     setFilteredRooms(result);
@@ -570,7 +488,7 @@ const RoomsPage = () => {
       {/* --- Filter Bar --- */}
       <div className="bg-white border-b border-gray-200 sticky top-[72px] z-40 shadow-sm">
         <div className="max-w-7xl mx-auto px-6 py-4 flex flex-col md:flex-row gap-6 items-center justify-between">
-          {/* Left: Occupants Filter */}
+          {/* Left: Occupants Filter (Max 2 beds) */}
           <div className="flex items-center gap-3 w-full md:w-auto">
             <div className="flex items-center gap-2 text-gray-500 text-sm min-w-fit">
               <User size={16} />
@@ -586,14 +504,12 @@ const RoomsPage = () => {
               <option value="Any">Any Guests</option>
               <option value="1">1 Guest</option>
               <option value="2">2 Guests</option>
-              <option value="3">3 Guests</option>
-              <option value="4+">4+ Guests (Family)</option>
             </select>
           </div>
 
-          {/* Right: Feature Filters */}
+          {/* Right: Feature Filters (Removed Ground/First Floor) */}
           <div className="flex gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0 no-scrollbar">
-            {['All', 'Balcony', 'Ground Floor', 'First Floor'].map((filter) => (
+            {['All', 'Balcony'].map((filter) => (
               <button
                 key={filter}
                 onClick={() => setActiveFilter(filter)}
@@ -646,7 +562,9 @@ const RoomsPage = () => {
                 type={room.type}
                 title={room.roomNumber ? `Suite ${room.roomNumber}` : room.type}
                 price={room.price}
-                onClick={() => router.push('/rooms')}
+                amenities={room.amenities}
+                image={getRoomImage(room)}
+                onClick={() => router.push('/rooms')} 
               />
             ))}
           </div>
