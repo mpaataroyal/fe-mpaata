@@ -43,29 +43,32 @@ const IMAGES = {
 // --- DATA FROM USER JSON ---
 const SHOWCASE_ROOMS = [
   {
-    id: "5B73XBDnXjKyAo8Hxgxk",
-    type: "ROYAL 1",
+    id: '5B73XBDnXjKyAo8Hxgxk',
+    type: 'ROYAL 1',
     price: 150000,
-    roomNumber: "ROYAL 1",
-    description: "Comfortable deluxe room on the first floor with air conditioning, a fridge. a television, a tea setup and access to wifi.",
-    image: "royal1.webp" 
+    roomNumber: 'ROYAL 1',
+    description:
+      'Comfortable deluxe room on the first floor with air conditioning, a fridge. a television, a tea setup and access to wifi.',
+    image: 'royal1.webp',
   },
   {
-    id: "sv5Pa3CmQWbMvkCFkFsD",
-    type: "ROYAL 2",
+    id: 'sv5Pa3CmQWbMvkCFkFsD',
+    type: 'ROYAL 2',
     price: 150000,
-    roomNumber: "ROYAL 2",
-    description: "Comfortable deluxe room on the first floor with air conditioning, a fridge. a television, a tea setup and access to wifi.",
-    image: "royal.webp"
+    roomNumber: 'ROYAL 2',
+    description:
+      'Comfortable deluxe room on the first floor with air conditioning, a fridge. a television, a tea setup and access to wifi.',
+    image: 'royal.webp',
   },
   {
-    id: "8MvOXfuseVdgVZdNuGf8",
-    type: "DELUXY SUIT",
+    id: '8MvOXfuseVdgVZdNuGf8',
+    type: 'DELUXY SUITE',
     price: 120000,
-    roomNumber: "M12",
-    description: "Comfortable deluxe room on the first floor with air conditioning, a fridge. a television, a tea setup and access to wifi.",
-    image: "balcony.webp"
-  }
+    roomNumber: 'M12',
+    description:
+      'Comfortable deluxe room on the first floor with air conditioning, a fridge. a television, a tea setup and access to wifi.',
+    image: 'balcony.webp',
+  },
 ];
 
 // --- Components ---
@@ -131,6 +134,11 @@ const Navbar = () => {
     userRole,
   );
 
+  const getDashboardLink = () => {
+    if (userRole === 'receptionist') return '/admin/bookings';
+    return isAdmin ? '/admin/dashboard' : '/my';
+  };
+
   const navigateToDashboard = (tab) => {
     router.push('/my');
     setDropdownOpen(false);
@@ -151,14 +159,16 @@ const Navbar = () => {
       <div className="max-w-7xl mx-auto px-6 flex justify-between items-center">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-3">
-          <img 
-            src="/logo.webp" 
-            alt="Mpaata Logo" 
-            className="w-10 h-10 object-contain" 
+          <img
+            src="/logo.webp"
+            alt="Mpaata Logo"
+            className="w-10 h-10 object-contain"
           />
-          <span className={`font-serif text-xl md:text-2xl tracking-widest font-semibold uppercase ${
-            scrolled ? 'text-[#0F2027]' : 'text-white'
-          }`}>
+          <span
+            className={`font-serif text-xl md:text-2xl tracking-widest font-semibold uppercase ${
+              scrolled ? 'text-[#0F2027]' : 'text-white'
+            }`}
+          >
             MPAATA
           </span>
         </Link>
@@ -179,14 +189,14 @@ const Navbar = () => {
               scrolled ? 'text-[#0F2027]' : 'text-white'
             }`}
           >
-            Royal Suits
+            Royal Suites
           </Link>
 
           {user ? (
-            isAdmin ? (
+            isAdmin || userRole === 'receptionist' ? (
               // ADMIN VIEW
               <Button
-                onClick={() => router.push('/admin/dashboard')}
+                onClick={() => router.push(getDashboardLink())}
                 type={scrolled ? 'primary' : 'ghost'}
                 className="ml-4 uppercase text-xs px-6 py-2.5"
               >
@@ -315,7 +325,7 @@ const Navbar = () => {
             href="/rooms"
             className="text-lg font-serif border-b border-gray-100 pb-2 hover:text-[#D4AF37]"
           >
-            Royal Suits
+            Royal Suites
           </Link>
 
           {user ? (
@@ -327,7 +337,7 @@ const Navbar = () => {
                 <span className="font-bold">{user.displayName}</span>
               </div>
               <Button
-                onClick={() => router.push('/my')}
+                onClick={() => router.push(getDashboardLink())}
                 type="primary"
                 className="w-full"
               >
@@ -387,7 +397,7 @@ const Hero = () => {
         </span>
         <h1 className="font-serif text-5xl md:text-7xl lg:text-8xl mb-8 leading-tight">
           MPAATA <br />{' '}
-          <span className="italic font-light text-[#F3E5AB]">Royal Suits</span>
+          <span className="italic font-light text-[#F3E5AB]">Royal Suites</span>
         </h1>
         <p className="font-sans text-sm md:text-base max-w-lg mx-auto leading-relaxed opacity-90 mb-12">
           Experience the grandeur of royalty. A sanctuary of gold and sapphire
@@ -556,8 +566,10 @@ const RoomsSection = () => {
           {rooms.map((room) => (
             <RoomCard
               key={room.id}
-              image={room.image} 
-              title={room.roomNumber.replace('ROYAL', 'Royal Suite').replace('M', 'Suite M')}
+              image={room.image}
+              title={room.roomNumber
+                .replace('ROYAL', 'Royal Suite')
+                .replace('M', 'Suite M')}
               price={room.price}
               type={room.type}
               onClick={() => router.push('/rooms')}
@@ -583,7 +595,11 @@ const RoomsSection = () => {
 // --- Amenities Section ---
 const Amenities = () => {
   const items = [
-    { icon: Coffee, title: 'Free Breakfast', desc: 'Daily Continental & Local' }, // REPLACED Royal Service
+    {
+      icon: Coffee,
+      title: 'Free Breakfast',
+      desc: 'Daily Continental & Local',
+    }, // REPLACED Royal Service
     { icon: Utensils, title: 'Restaurant', desc: 'Fine Dining Experience' },
     { icon: Wifi, title: 'Wifi', desc: 'High-Speed Internet' },
     { icon: Car, title: 'Parking', desc: 'Secure Valet Parking' },
@@ -638,7 +654,7 @@ const LocationSection = () => {
             className="absolute inset-0 w-full h-full object-cover opacity-60 grayscale"
             onError={(e) => {
               e.target.src = IMAGES.mapPlaceholder;
-            }} 
+            }}
           />
           <div className="absolute inset-0 bg-gradient-to-r from-white/70 via-white/30 to-transparent"></div>
         </div>
@@ -732,7 +748,7 @@ const Footer = () => (
           </li>
           <li>
             <Link href="/rooms" className="hover:text-[#D4AF37]">
-              Royal Suits
+              Royal Suites
             </Link>
           </li>
         </ul>

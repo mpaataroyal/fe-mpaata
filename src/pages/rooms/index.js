@@ -38,10 +38,10 @@ const getRoomImage = (room) => {
   const roomNumStr = room.roomNumber?.toString() || '';
   const num = parseInt(roomNumStr.replace(/\D/g, '') || '0');
   const type = room.type?.toUpperCase() || '';
-  
+
   if (roomNumStr === 'ROYAL 1') return 'royal1.webp';
   if (roomNumStr === 'ROYAL 2') return 'royal.webp';
-  if (type === 'TWIN SUIT') return 'twin.webp';
+  if (type === 'TWIN SUITE') return 'twin.webp';
   if (num === 13) return '13.webp';
   if ([12, 16, 17, 20].includes(num)) return 'balcony.webp';
   if ([11, 14, 15, 18, 19].includes(num)) return '11_14_15_18_19.webp';
@@ -53,7 +53,7 @@ const getRoomImage = (room) => {
 // --- Helper: Capacity Logic ---
 const getCapacity = (room) => {
   if (room.capacity) return Math.min(room.capacity, 2);
-  return 2; 
+  return 2;
 };
 
 // --- Components ---
@@ -79,7 +79,7 @@ const Navbar = () => {
   const [user, setUser] = useState(null);
   const [userRole, setUserRole] = useState('client');
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const router = useRouter(); 
+  const router = useRouter();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -130,10 +130,10 @@ const Navbar = () => {
           className="flex items-center gap-3 cursor-pointer"
           onClick={() => router.push('/')}
         >
-          <img 
-            src="/logo.webp" 
-            alt="Mpaata Logo" 
-            className="w-10 h-10 object-contain" 
+          <img
+            src="/logo.webp"
+            alt="Mpaata Logo"
+            className="w-10 h-10 object-contain"
           />
           <span className="font-serif text-xl md:text-2xl tracking-widest font-semibold uppercase">
             MPAATA
@@ -142,7 +142,7 @@ const Navbar = () => {
 
         {/* Desktop Menu */}
         <div className="hidden md:flex items-center gap-8 font-sans text-xs tracking-[0.15em] uppercase font-medium">
-          {['Home', 'Royal Suits'].map((item) => (
+          {['Home', 'Royal Suites'].map((item) => (
             <a
               key={item}
               href={item === 'Home' ? '/' : '/rooms'}
@@ -267,7 +267,7 @@ const Navbar = () => {
             href="/rooms"
             className="text-lg font-serif border-b border-gray-100 pb-2 hover:text-[#D4AF37]"
           >
-            Royal Suits
+            Royal Suites
           </a>
 
           {user ? (
@@ -342,7 +342,8 @@ const RoomCard = ({ type, price, title, onClick, image, amenities }) => {
               {type}
             </h3>
             <p className="text-xs text-gray-400 uppercase tracking-widest">
-              Room {title.replace('Suite ', '').replace('Room ', '')} • {getCapacity({ type })} Guests
+              Room {title.replace('Suite ', '').replace('Room ', '')} •{' '}
+              {getCapacity({ type })} Guests
             </p>
           </div>
           <div className="text-right">
@@ -365,16 +366,19 @@ const RoomCard = ({ type, price, title, onClick, image, amenities }) => {
         {/* Amenities */}
         <div className="mb-8">
           <div className="flex flex-wrap gap-2">
-             {amenities?.slice(0, 3).map((amenity, index) => (
-               <span key={index} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#fcfbf7] border border-gray-200 rounded-[2px] text-xs text-gray-600">
-                 <CheckCircle size={12} /> {amenity}
-               </span>
-             ))}
-             {amenities?.length > 3 && (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#fcfbf7] border border-gray-200 rounded-[2px] text-xs text-gray-600">
-                  +{amenities.length - 3} more
-                </span>
-             )}
+            {amenities?.slice(0, 3).map((amenity, index) => (
+              <span
+                key={index}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#fcfbf7] border border-gray-200 rounded-[2px] text-xs text-gray-600"
+              >
+                <CheckCircle size={12} /> {amenity}
+              </span>
+            ))}
+            {amenities?.length > 3 && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#fcfbf7] border border-gray-200 rounded-[2px] text-xs text-gray-600">
+                +{amenities.length - 3} more
+              </span>
+            )}
           </div>
         </div>
 
@@ -445,16 +449,16 @@ const RoomsPage = () => {
       result = result.filter((r) =>
         r.amenities?.some((a) => a.toLowerCase().includes('balcony')),
       );
-    } 
+    }
 
     // 2. Filter by Occupants (Dropdown)
     if (occupants !== 'Any') {
       if (occupants === '2') {
-         // Strict filter: If user selects 2 guests, ONLY show Twin Suits
-         result = result.filter(r => r.type === 'TWIN SUIT');
+        // Strict filter: If user selects 2 guests, ONLY show Twin Suites
+        result = result.filter((r) => r.type === 'TWIN SUITE');
       } else {
-         const minGuests = parseInt(occupants);
-         result = result.filter((r) => getCapacity(r) >= minGuests);
+        const minGuests = parseInt(occupants);
+        result = result.filter((r) => getCapacity(r) >= minGuests);
       }
     }
 
@@ -564,7 +568,7 @@ const RoomsPage = () => {
                 price={room.price}
                 amenities={room.amenities}
                 image={getRoomImage(room)}
-                onClick={() => router.push('/my')} 
+                onClick={() => router.push('/my')}
               />
             ))}
           </div>

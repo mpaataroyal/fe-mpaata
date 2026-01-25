@@ -1,5 +1,6 @@
-import { db } from '@/libs/firebaseAdmin';
-import { runMiddleware, verifyToken, hasRole } from '@/libs/middleware';
+// FIXED: Use relative paths to match your other working API files
+import { db } from '../../../libs/firebaseAdmin';
+import { runMiddleware, verifyToken, hasRole } from '../../../libs/middleware';
 import Cors from 'cors';
 import { DateTime, Interval } from 'luxon';
 
@@ -44,8 +45,7 @@ export default async function handler(req, res) {
     const { range = '7d' } = req.query;
     const now = DateTime.now();
     
-    // NOTE: In production with lots of data, you shouldn't fetch ALL docs.
-    // Use Firestore COUNT() queries or aggregation bundles. keeping as-is for parity.
+    // Fetch data in parallel
     const [bookingsSnap, paymentsSnap, roomsSnap, usersSnap] = await Promise.all([
       db.collection('bookings').get(),
       db.collection('payments').get(),
@@ -60,9 +60,22 @@ export default async function handler(req, res) {
 
     bookingsSnap.forEach(doc => {
       const b = { id: doc.id, ...doc.data() };
-      const bookingDate = DateTime.fromJSDate(b.createdAt ? b.createdAt.toDate() : new Date());
-      const checkIn = b.checkIn ? DateTime.fromJSDate(b.checkIn.toDate()) : now;
-      const checkOut = b.checkOut ? DateTime.fromJSDate(b.checkOut.toDate()) : now;
+
+      // --- FIXED: Safe Date Parsing (Prevents 500 Crash) ---
+      let bookingDateJS, checkInJS, checkOutJS;
+      try {
+        bookingDateJS = b.createdAt?.toDate ? b.createdAt.toDate() : (b.createdAt ? new Date(b.createdAt) : new Date());
+        checkInJS = b.checkIn?.toDate ? b.checkIn.toDate() : (b.checkIn ? new Date(b.checkIn) : new Date());
+        checkOutJS = b.checkOut?.toDate ? b.checkOut.toDate() : (b.checkOut ? new Date(b.checkOut) : new Date());
+      } catch (e) {
+        // Skip invalid records instead of crashing the whole dashboard
+        return; 
+      }
+
+      const bookingDate = DateTime.fromJSDate(bookingDateJS);
+      const checkIn = DateTime.fromJSDate(checkInJS);
+      const checkOut = DateTime.fromJSDate(checkOutJS);
+      // -----------------------------------------------------
 
       const matchKey = range === '1y' ? bookingDate.toFormat('yyyy-MM') : bookingDate.toISODate();
 
@@ -74,23 +87,38 @@ export default async function handler(req, res) {
         }
       }
 
-      if (b.paymentStatus === 'paid' || b.status === 'confirmed') totalRevenue += (Number(b.totalPrice) || 0);
+      if (b.paymentStatus === 'paid' || b.status === 'confirmed') {
+        totalRevenue += (Number(b.totalPrice) || 0);
+      }
 
       const stayInterval = Interval.fromDateTimes(checkIn, checkOut);
-      if (stayInterval.contains(now) && b.status !== 'cancelled') activeBookingsCount++;
+      if (stayInterval.contains(now) && b.status !== 'cancelled') {
+        activeBookingsCount++;
+      }
 
       if (recentBookings.length < 5) {
-        recentBookings.push({ key: b.id, id: b.id, guest: b.guestName, amount: b.totalPrice, status: b.status });
+        recentBookings.push({ 
+          key: b.id, 
+          id: b.id, 
+          guest: b.guestName, 
+          amount: b.totalPrice, 
+          status: b.status,
+          paymentMethod: b.paymentMethod // Added to show method in recent table
+        });
       }
     });
 
+    // Payment Methods Breakdown
     const paymentMethods = {};
     paymentsSnap.forEach(doc => {
       const p = doc.data();
       let method = p.provider || p.method || 'Cash';
+      // Normalize names
       if (method.toLowerCase().includes('mobile')) method = 'Mobile Money';
+      else if (method.toLowerCase().includes('merchant')) method = 'Merchant Pay';
       else if (method.toLowerCase().includes('card')) method = 'Visa';
       else method = 'Cash';
+      
       paymentMethods[method] = (paymentMethods[method] || 0) + 1;
     });
 
@@ -108,6 +136,7 @@ export default async function handler(req, res) {
       }
     });
   } catch (error) {
+    console.error("Dashboard Stats Error:", error);
     res.status(500).json({ error: error.message });
   }
 }

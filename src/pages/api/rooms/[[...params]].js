@@ -44,7 +44,7 @@ async function handleList(req, res) {
   // 2. Fetch Active Bookings
   const now = new Date();
   const bookingsSnapshot = await db.collection('bookings')
-    .where('status', 'in', ['confirmed', 'pending', 'checked-in']) // Added 'checked-in' just in case
+    .where('status', 'in', ['confirmed', 'pending', 'checked-in'])
     .where('checkOut', '>', admin.firestore.Timestamp.fromDate(now))
     .get();
 
@@ -68,8 +68,6 @@ async function handleList(req, res) {
     const roomBookings = bookingsByRoom[room.id] || [];
     roomBookings.sort((a, b) => a.checkIn - b.checkIn);
 
-    // FIX: Initialize with current DB status instead of defaulting to 'Available'
-    // If the DB says 'Occupied' or 'Booked', we keep it, unless we calculate otherwise.
     let calculatedStatus = ['Occupied', 'Booked'].includes(room.status) ? room.status : 'Available';
     let nextAvailable = room.nextAvailable || null;
 
@@ -141,7 +139,8 @@ async function handleGetOne(req, res, id) {
 async function handleCreate(req, res, user) {
   if (!hasRole(user, ['admin', 'manager'])) return res.status(403).json({ error: 'Unauthorized' });
 
-  const { roomNumber, type, price, status, amenities, description } = req.body;
+  // FIXED: Added priceUSD to destructuring
+  const { roomNumber, type, price, priceUSD, status, amenities, description } = req.body;
 
   if (!roomNumber || !type || !price) {
     return res.status(400).json({ error: 'Room Number, Type, and Price are required.' });
@@ -154,6 +153,7 @@ async function handleCreate(req, res, user) {
     roomNumber,
     type,
     price: Number(price),
+    priceUSD: priceUSD ? Number(priceUSD) : 0, // FIXED: Added priceUSD field
     status: status || 'Available',
     amenities: amenities || [],
     description: description || '',
@@ -175,7 +175,8 @@ async function handleUpdate(req, res, user, id) {
   if (!hasRole(user, ['admin', 'manager', 'receptionist'])) return res.status(403).json({ error: 'Unauthorized' });
 
   const updates = req.body;
-  const { roomNumber, type, price, status, amenities, description, nextAvailable } = updates;
+  // FIXED: Added priceUSD to destructuring
+  const { roomNumber, type, price, priceUSD, status, amenities, description, nextAvailable } = updates;
 
   const roomRef = db.collection('rooms').doc(id);
   const roomDoc = await roomRef.get();
@@ -191,10 +192,10 @@ async function handleUpdate(req, res, user, id) {
     ...(roomNumber && { roomNumber }),
     ...(type && { type }),
     ...(price && { price: Number(price) }),
+    ...(priceUSD !== undefined && { priceUSD: Number(priceUSD) }), // FIXED: Added priceUSD field
     ...(status && { status }),
     ...(amenities && { amenities }),
     ...(description && { description }),
-    // Allow updating nextAvailable directly (useful for manual Occupied status)
     ...(nextAvailable !== undefined && { nextAvailable }), 
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     updatedBy: user.uid
