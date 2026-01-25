@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import axios from 'axios'; 
 import {
   Menu,
   X,
@@ -18,7 +19,7 @@ import {
   Twitter,
   Utensils,
   Wifi,
-  Car,
+  Wine, 
   Monitor,
   Loader2,
   ArrowRight,
@@ -29,6 +30,17 @@ import {
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from '@/libs/firebase';
 import { api } from '@/libs/apiAgent';
+
+// --- GEOLOCATION UTILITY ---
+const getCountryCode = async () => {
+  try {
+    const response = await axios.get('https://ipwho.is/');
+    return response.data.country_code; 
+  } catch (error) {
+    console.error("Failed to fetch location", error);
+    return 'UG'; // Default to Uganda
+  }
+};
 
 // --- Design Assets ---
 const IMAGES = {
@@ -78,7 +90,7 @@ const SHOWCASE_ROOMS = [
 
 const Button = ({ children, type = 'default', className = '', ...props }) => {
   const baseStyle =
-    'px-4 py-2 transition-all duration-300 rounded-[2px] font-sans text-sm tracking-wide cursor-pointer focus:outline-none focus:ring-1 focus:ring-offset-1 focus:ring-[#D4AF37] inline-flex items-center justify-center';
+    'px-4 py-2 transition-all duration-300 rounded-[2px] font-sans text-xs font-bold tracking-widest cursor-pointer focus:outline-none focus:ring-1 focus:ring-offset-1 focus:ring-[#D4AF37] inline-flex items-center justify-center';
   const styles = {
     primary: `bg-gradient-to-r from-[#0F2027] via-[#203A43] to-[#2C5364] text-[#D4AF37] hover:brightness-110 border border-[#D4AF37] shadow-lg`,
     ghost: `bg-transparent text-white border border-white hover:bg-white hover:text-[#0F2027]`,
@@ -92,7 +104,7 @@ const Button = ({ children, type = 'default', className = '', ...props }) => {
   );
 };
 
-// --- Navbar ---
+// --- Navbar (Compact Version) ---
 const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -155,20 +167,20 @@ const Navbar = () => {
     <nav
       className={`fixed w-full z-50 transition-all duration-500 ${
         scrolled
-          ? 'bg-white/95 backdrop-blur-md shadow-sm py-4 text-[#0F2027]'
-          : 'bg-transparent py-6 text-white'
+          ? 'bg-white/95 backdrop-blur-md shadow-sm py-3 text-[#0F2027]' // Compact padding
+          : 'bg-transparent py-4 text-white' // Compact padding
       }`}
     >
       <div className="max-w-7xl mx-auto px-6 flex justify-between items-center">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-3">
+        <Link href="/" className="flex items-center gap-2">
           <img
             src="/logo.webp"
             alt="Mpaata Logo"
-            className="w-10 h-10 object-contain"
+            className="w-8 h-8 object-contain" // Smaller logo
           />
           <span
-            className={`font-serif text-xl md:text-2xl tracking-widest font-semibold uppercase ${
+            className={`font-serif text-lg md:text-xl tracking-widest font-semibold uppercase ${
               scrolled ? 'text-[#0F2027]' : 'text-white'
             }`}
           >
@@ -177,7 +189,7 @@ const Navbar = () => {
         </Link>
 
         {/* Desktop Links */}
-        <div className="hidden md:flex items-center gap-8 font-sans text-xs tracking-[0.15em] uppercase font-medium">
+        <div className="hidden md:flex items-center gap-6 font-sans text-[11px] tracking-[0.15em] uppercase font-medium">
           <Link
             href="/"
             className={`hover:text-[#D4AF37] transition-colors ${
@@ -201,13 +213,13 @@ const Navbar = () => {
               <Button
                 onClick={() => router.push(getDashboardLink())}
                 type={scrolled ? 'primary' : 'ghost'}
-                className="ml-4 uppercase text-xs px-6 py-2.5"
+                className="ml-2 uppercase text-[10px] px-5 py-2"
               >
-                Access Dashboard
+                Dashboard
               </Button>
             ) : (
               // CLIENT VIEW
-              <div className="relative ml-4">
+              <div className="relative ml-2">
                 <button
                   onClick={() => setDropdownOpen(!dropdownOpen)}
                   className={`flex items-center gap-2 focus:outline-none hover:opacity-80 transition-opacity ${
@@ -218,11 +230,11 @@ const Navbar = () => {
                     <img
                       src={user.photoURL}
                       alt="Profile"
-                      className="w-8 h-8 rounded-full border border-gray-200 object-cover"
+                      className="w-7 h-7 rounded-full border border-gray-200 object-cover"
                     />
                   ) : (
                     <div
-                      className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${
+                      className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs ${
                         scrolled
                           ? 'bg-[#0F2027] text-[#D4AF37]'
                           : 'bg-white text-[#0F2027]'
@@ -231,11 +243,11 @@ const Navbar = () => {
                       {user.displayName?.[0] || 'U'}
                     </div>
                   )}
-                  <span className="normal-case tracking-normal font-bold">
+                  <span className="normal-case tracking-normal font-bold text-xs">
                     {user.displayName?.split(' ')[0]}
                   </span>
                   <ChevronRight
-                    size={14}
+                    size={12}
                     className={`transform transition-transform ${
                       dropdownOpen ? 'rotate-90' : ''
                     }`}
@@ -276,10 +288,10 @@ const Navbar = () => {
               </div>
             )
           ) : (
-            <div className="flex items-center gap-4 ml-4">
+            <div className="flex items-center gap-4 ml-2">
               <button
                 onClick={handleLogin}
-                className={`text-xs font-bold uppercase tracking-widest hover:text-[#D4AF37] transition-colors ${
+                className={`text-[10px] font-bold uppercase tracking-widest hover:text-[#D4AF37] transition-colors ${
                   scrolled ? 'text-[#0F2027]' : 'text-white'
                 }`}
               >
@@ -288,9 +300,9 @@ const Navbar = () => {
               <Button
                 onClick={handleLogin}
                 type={scrolled ? 'primary' : 'ghost'}
-                className="uppercase text-xs px-6 py-2.5"
+                className="uppercase text-[10px] px-5 py-2"
               >
-                Book Royal Stay
+                Book Now
               </Button>
             </div>
           )}
@@ -372,7 +384,7 @@ const Navbar = () => {
   );
 };
 
-// --- Hero Section ---
+// --- Hero Section (Shorter) ---
 const Hero = () => {
   const [checkIn, setCheckIn] = useState('');
   const [checkOut, setCheckOut] = useState('');
@@ -384,7 +396,8 @@ const Hero = () => {
   };
 
   return (
-    <div className="relative h-screen min-h-[700px] flex flex-col justify-center items-center text-center text-white px-4">
+    // Changed height from h-screen to h-[80vh] to hide bottom part and be more compact
+    <div className="relative h-[80vh] min-h-[600px] flex flex-col justify-center items-center text-center text-white px-4">
       <div className="absolute inset-0 z-0">
         <img
           src={IMAGES.hero}
@@ -395,22 +408,22 @@ const Hero = () => {
       </div>
 
       <div className="relative z-10 max-w-4xl mx-auto animate-fade-in-up">
-        <span className="block font-sans text-xs md:text-sm tracking-[0.3em] uppercase mb-6 text-[#D4AF37] font-semibold">
+        <span className="block font-sans text-xs md:text-sm tracking-[0.3em] uppercase mb-4 text-[#D4AF37] font-semibold">
           Welcome to the Empire
         </span>
-        <h1 className="font-serif text-5xl md:text-7xl lg:text-8xl mb-8 leading-tight">
+        <h1 className="font-serif text-5xl md:text-7xl lg:text-8xl mb-6 leading-tight">
           MPAATA <br />{' '}
           <span className="italic font-light text-[#F3E5AB]">Royal Suites</span>
         </h1>
-        <p className="font-sans text-sm md:text-base max-w-lg mx-auto leading-relaxed opacity-90 mb-12">
+        <p className="font-sans text-sm md:text-base max-w-lg mx-auto leading-relaxed opacity-90 mb-10">
           Experience the grandeur of royalty. A sanctuary of gold and sapphire
           where luxury knows no bounds.
         </p>
       </div>
 
-      {/* Booking Widget */}
-      <div className="relative z-20 w-full max-w-5xl mx-auto -mb-32 md:-mb-24 px-4 text-left">
-        <div className="bg-white p-6 md:p-8 shadow-2xl rounded-[2px] grid grid-cols-1 md:grid-cols-4 gap-4 items-end border-t-4 border-[#D4AF37]">
+      {/* Booking Widget (Overlapping) */}
+      <div className="relative z-20 w-full max-w-5xl mx-auto -mb-28 md:-mb-24 px-4 text-left">
+        <div className="bg-white p-6 md:p-6 shadow-2xl rounded-[2px] grid grid-cols-1 md:grid-cols-4 gap-4 items-end border-t-4 border-[#D4AF37]">
           {/* Check In */}
           <div className="space-y-2">
             <label className="text-xs uppercase tracking-wider text-[#0F2027] font-semibold flex items-center gap-2">
@@ -512,41 +525,45 @@ const IntroSection = () => (
   </section>
 );
 
-// --- Rooms Section (Dynamic from JSON) ---
-const RoomCard = ({ image, title, price, type, onClick }) => (
-  <div className="group cursor-pointer" onClick={onClick}>
-    <div className="relative overflow-hidden mb-6 aspect-[4/5] md:aspect-[3/4] border-b-4 border-transparent group-hover:border-[#D4AF37] transition-all bg-gray-100">
-      <div className="absolute inset-0 bg-[#0F2027]/20 group-hover:bg-transparent transition-colors z-10"></div>
-      <img
-        src={image || IMAGES.roomPlaceholder}
-        alt={title}
-        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-      />
-      <div className="absolute bottom-6 left-6 z-20 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-500 transform translate-y-4 group-hover:translate-y-0">
-        <Button
-          type="primary"
-          className="text-xs uppercase tracking-widest px-6 border-none"
-        >
-          View Details
-        </Button>
-      </div>
-    </div>
-    <div className="text-center">
-      <h3 className="font-serif text-2xl text-[#0F2027] mb-2 group-hover:text-[#D4AF37] transition-colors">
-        {title}
-      </h3>
-      <div className="flex justify-center gap-4 text-xs font-sans text-gray-500 uppercase tracking-widest">
-        <span>{type}</span>
-        <span className="w-[1px] h-3 bg-[#D4AF37]"></span>
-        <span>From UGX {Number(price).toLocaleString()}</span>
-      </div>
-    </div>
-  </div>
-);
+// --- Rooms Section ---
+const RoomCard = ({ image, title, price, type, onClick, currency }) => {
+  const symbol = currency === 'USD' ? '$' : 'UGX';
+  const displayPrice = Number(price).toLocaleString();
 
-const RoomsSection = () => {
+  return (
+    <div className="group cursor-pointer" onClick={onClick}>
+      <div className="relative overflow-hidden mb-6 aspect-[4/5] md:aspect-[3/4] border-b-4 border-transparent group-hover:border-[#D4AF37] transition-all bg-gray-100">
+        <div className="absolute inset-0 bg-[#0F2027]/20 group-hover:bg-transparent transition-colors z-10"></div>
+        <img
+          src={image || IMAGES.roomPlaceholder}
+          alt={title}
+          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+        />
+        <div className="absolute bottom-6 left-6 z-20 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-500 transform translate-y-4 group-hover:translate-y-0">
+          <Button
+            type="primary"
+            className="text-xs uppercase tracking-widest px-6 border-none"
+          >
+            View Details
+          </Button>
+        </div>
+      </div>
+      <div className="text-center">
+        <h3 className="font-serif text-2xl text-[#0F2027] mb-2 group-hover:text-[#D4AF37] transition-colors">
+          {title}
+        </h3>
+        <div className="flex justify-center gap-4 text-xs font-sans text-gray-500 uppercase tracking-widest">
+          <span>{type}</span>
+          <span className="w-[1px] h-3 bg-[#D4AF37]"></span>
+          <span>From {symbol} {displayPrice}</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const RoomsSection = ({ currency }) => {
   const router = useRouter();
-  // Using hardcoded data from JSON as requested
   const rooms = SHOWCASE_ROOMS;
 
   return (
@@ -566,18 +583,24 @@ const RoomsSection = () => {
         </div>
 
         <div className="grid md:grid-cols-3 gap-8">
-          {rooms.map((room) => (
-            <RoomCard
-              key={room.id}
-              image={room.image}
-              title={room.roomNumber
-                .replace('ROYAL', 'Royal Suite')
-                .replace('M', 'Suite M')}
-              price={room.price}
-              type={room.type}
-              onClick={() => router.push('/rooms')}
-            />
-          ))}
+          {rooms.map((room) => {
+            const useUSD = currency === 'USD';
+            const priceToUse = useUSD && room.priceUSD ? room.priceUSD : room.price;
+            
+            return (
+              <RoomCard
+                key={room.id}
+                image={room.image}
+                title={room.roomNumber
+                  .replace('ROYAL', 'Royal Suite')
+                  .replace('M', 'Suite M')}
+                price={priceToUse}
+                currency={currency}
+                type={room.type}
+                onClick={() => router.push('/my')}
+              />
+            );
+          })}
         </div>
 
         <div className="text-center mt-16">
@@ -602,10 +625,10 @@ const Amenities = () => {
       icon: Coffee,
       title: 'Free Breakfast',
       desc: 'Daily Continental & Local',
-    }, // REPLACED Royal Service
+    },
     { icon: Utensils, title: 'Restaurant', desc: 'Fine Dining Experience' },
     { icon: Wifi, title: 'Wifi', desc: 'High-Speed Internet' },
-    { icon: Car, title: 'Parking', desc: 'Secure Valet Parking' },
+    { icon: Wine, title: 'Bar & Lounge', desc: 'Exquisite Cocktails' }, // Updated
     {
       icon: Monitor,
       title: 'Conference Room',
@@ -643,7 +666,7 @@ const Amenities = () => {
 
 // --- Location Section ---
 const LocationSection = () => {
-  const coordinates = '1.428292,31.359560'; // Hoima coordinates
+  const coordinates = '1.428292,31.359560'; 
   const apiKey = 'AIzaSyBp6AeE01WY__gSB8CWZNE-NBRRAF1I9qI';
   const staticMapUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${coordinates}&zoom=15&size=640x640&scale=2&maptype=roadmap&markers=color:red%7C${coordinates}&key=${apiKey}`;
 
@@ -806,6 +829,18 @@ const Footer = () => (
 );
 
 export default function Home() {
+  const [currency, setCurrency] = useState('UGX');
+
+  useEffect(() => {
+    const checkLocation = async () => {
+      const code = await getCountryCode();
+      if (code !== 'UG') {
+        setCurrency('USD');
+      }
+    };
+    checkLocation();
+  }, []);
+
   return (
     <div className="font-sans text-gray-900 bg-[#fcfbf7]">
       <style>{`
@@ -823,7 +858,8 @@ export default function Home() {
       <Navbar />
       <Hero />
       <IntroSection />
-      <RoomsSection />
+      {/* Pass currency to RoomsSection */}
+      <RoomsSection currency={currency} />
       <Amenities />
       <LocationSection />
       <Footer />

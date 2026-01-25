@@ -327,12 +327,9 @@ const UserDashboard = () => {
           // --- REDIRECTION LOGIC ---
           const role = backendUser?.role || 'client';
 
-          
-console.log('============ role===============' , role);
           if (['admin','receptionist', 'manager', 'super_admin'].includes(role)) {
             if (role === 'receptionist') {
-              console.log('===========================');
-              
+
             router.push('/admin/bookings');
             return;
           }
