@@ -564,7 +564,7 @@ const RoomsPage = () => {
                 price={room.price}
                 amenities={room.amenities}
                 image={getRoomImage(room)}
-                onClick={() => router.push('/rooms')} 
+                onClick={() => router.push('/my')} 
               />
             ))}
           </div>
