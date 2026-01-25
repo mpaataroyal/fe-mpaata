@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import axios from 'axios';
 import {
   Calendar,
   CreditCard,
@@ -28,7 +29,7 @@ import {
   Home,
   AlertTriangle,
   RefreshCw,
-  Hash, // Added Hash icon for Transaction ID
+  Hash,
 } from 'lucide-react';
 import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
 import { auth, googleProvider } from '@/libs/firebase';
@@ -36,14 +37,23 @@ import { api } from '@/libs/apiAgent';
 
 /**
  * MPAATA EMPIRE - CLIENT DASHBOARD
- * Layout: Top Navigation
- * Features: My Bookings, Payments, Room Browsing
  */
+
+// --- 1. GEOLOCATION UTILITY ---
+const getCountryCode = async () => {
+  try {
+    const response = await axios.get('https://ipwho.is/');
+    return response.data.country_code;
+  } catch (error) {
+    console.error("Failed to fetch location", error);
+    return 'UG'; // Default to Uganda
+  }
+};
 
 // --- Constants ---
 const DEFAULT_ROOM_IMAGE = 'suit.jpg';
 
-// --- Helper: Image Mapping Logic (Strict .webp) ---
+// --- Helper: Image Mapping Logic ---
 const getRoomImage = (room) => {
   const roomNumStr = room.roomNumber?.toString() || '';
   const num = parseInt(roomNumStr.replace(/\D/g, '') || '0');
@@ -142,18 +152,20 @@ const Input = ({ label, icon: Icon, error, ...props }) => (
 );
 
 // --- Room Card ---
-const RoomCard = ({ room, onBook, image }) => {
+const RoomCard = ({ room, onBook, image, currency }) => {
+  const useUSD = currency === 'USD' && room.priceUSD && room.priceUSD > 0;
+  const displayPrice = useUSD ? room.priceUSD : room.price;
+  const currencySymbol = useUSD ? '$' : 'UGX ';
+
   return (
     <div className="bg-white rounded-[2px] border border-gray-100 hover:border-[#D4AF37] transition-all shadow-sm overflow-hidden group flex flex-col">
       <div className="h-48 bg-gray-200 relative overflow-hidden">
-        {/* Image */}
         <div className="absolute inset-0 bg-[#0F2027]/10 group-hover:bg-transparent transition-colors z-10 pointer-events-none"></div>
         <img
           src={image}
           className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
           alt={room.type}
         />
-
         <span
           className={`absolute top-3 right-3 px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded-sm z-20 ${
             room.status === 'Available'
@@ -168,7 +180,7 @@ const RoomCard = ({ room, onBook, image }) => {
         <div className="flex justify-between items-start mb-2">
           <h3 className="font-serif text-lg text-[#0F2027]">{room.type}</h3>
           <span className="font-bold text-[#D4AF37]">
-            UGX {room.price?.toLocaleString()}
+             {currencySymbol}{Number(displayPrice).toLocaleString()}
           </span>
         </div>
         <p className="text-xs text-gray-400 mb-4">Room {room.roomNumber}</p>
@@ -207,7 +219,6 @@ const LoginScreen = ({ onLogin, loading }) => (
     <div className="w-full max-w-md bg-white p-8 md:p-12 shadow-2xl relative z-10 border-t-4 border-[#D4AF37]">
       <div className="text-center mb-10">
         <div className="w-12 h-12 flex items-center justify-center mx-auto mb-4">
-          {/* Logo on Login Screen */}
           <img
             src="/logo.webp"
             alt="Logo"
@@ -252,7 +263,7 @@ const UserDashboard = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [authLoading, setAuthLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('bookings'); // bookings, payments, rooms
+  const [activeTab, setActiveTab] = useState('bookings');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Data
@@ -260,6 +271,9 @@ const UserDashboard = () => {
   const [payments, setPayments] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [filteredRooms, setFilteredRooms] = useState([]);
+
+  // Currency State
+  const [currency, setCurrency] = useState('UGX');
 
   // Filters
   const [roomFilter, setRoomFilter] = useState('All');
@@ -279,54 +293,89 @@ const UserDashboard = () => {
     phone: '',
     paymentMethod: 'Mobile Money',
     paymentPhone: '',
-    transactionId: '', // Added for MoMo Pay reference
+    transactionId: '',
+    // Added for Multi-currency
+    price: 0,
+    currency: 'UGX'
   });
 
-  // Phone Update Modal State
   const [isPhoneModalOpen, setIsPhoneModalOpen] = useState(false);
   const [phoneNumberInput, setPhoneNumberInput] = useState('');
   const [phoneSaving, setPhoneSaving] = useState(false);
 
-  // Retry Payment State
   const [retryLoadingId, setRetryLoadingId] = useState(null);
 
-  // --- Auth & Initial Load ---
+  // --- GEOLOCATION EFFECT ---
+  useEffect(() => {
+    const determineCurrency = async () => {
+      const code = await getCountryCode();
+      if (code !== 'UG') {
+        setCurrency('USD');
+      }
+    };
+    determineCurrency();
+  }, []);
+
+  // --- Auth & Initial Load & REDIRECTION ---
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
-        let backendUser = null;
         try {
           const res = await api.users.getById(currentUser.uid);
-          backendUser = res.user || res;
+          const backendUser = res.user || res;
+
+          // --- REDIRECTION LOGIC ---
+          const role = backendUser?.role || 'client';
+
+          
+console.log('============ role===============' , role);
+          if (['admin','receptionist', 'manager', 'super_admin'].includes(role)) {
+            if (role === 'receptionist') {
+              console.log('===========================');
+              
+            router.push('/admin/bookings');
+            return;
+          }
+            router.push('/admin/dashboard');
+            return;
+          }
+          // --- END REDIRECTION ---
+
+          const phoneNumber = backendUser?.phoneNumber || null;
+
+          setUser({
+            uid: currentUser.uid,
+            name: currentUser.displayName,
+            email: currentUser.email,
+            photoURL: currentUser.photoURL,
+            phoneNumber: phoneNumber,
+          });
+
+          if (!phoneNumber) {
+            setIsPhoneModalOpen(true);
+          }
+
+          await loadData(currentUser.uid);
+          setLoading(false); // Only stop loading if we stay on this page
+
         } catch (err) {
-          console.warn(
-            'Backend user profile fetch failed, user might be new.',
-            err,
-          );
+          console.warn('Backend user profile fetch failed, user might be new.', err);
+          setUser({
+            uid: currentUser.uid,
+            name: currentUser.displayName,
+            email: currentUser.email,
+            photoURL: currentUser.photoURL,
+            phoneNumber: null,
+          });
+          setLoading(false);
         }
-
-        const phoneNumber = backendUser?.phoneNumber || null;
-
-        setUser({
-          uid: currentUser.uid,
-          name: currentUser.displayName,
-          email: currentUser.email,
-          photoURL: currentUser.photoURL,
-          phoneNumber: phoneNumber,
-        });
-
-        if (!phoneNumber) {
-          setIsPhoneModalOpen(true);
-        }
-
-        await loadData(currentUser.uid);
       } else {
         setUser(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
     return () => unsubscribe();
-  }, []);
+  }, [router]);
 
   const loadData = async (uid) => {
     try {
@@ -351,7 +400,7 @@ const UserDashboard = () => {
     try {
       const result = await signInWithPopup(auth, googleProvider);
       const idToken = await result.user.getIdToken();
-      await api.auth.googleLogin(idToken); // Sync with backend
+      await api.auth.googleLogin(idToken); 
     } catch (error) {
       console.error(error);
       alert('Login Failed');
@@ -386,13 +435,8 @@ const UserDashboard = () => {
   };
 
   const handleRetryPayment = async (payment) => {
-    if (
-      !confirm(
-        `Retry payment of UGX ${Number(
-          payment.amount,
-        ).toLocaleString()} using ${payment.phone}?`,
-      )
-    )
+    const currencySym = payment.currency === 'USD' ? '$' : 'UGX';
+    if (!confirm(`Retry payment of ${currencySym} ${Number(payment.amount).toLocaleString()} using ${payment.phone}?`))
       return;
 
     setRetryLoadingId(payment.id);
@@ -401,6 +445,7 @@ const UserDashboard = () => {
         bookingId: payment.bookingId,
         phoneNumber: payment.phone,
         amount: payment.amount,
+        currency: payment.currency 
       });
       alert('Payment prompt sent to your phone.');
       await loadData(user.uid);
@@ -415,28 +460,23 @@ const UserDashboard = () => {
   // --- Filter Logic ---
   useEffect(() => {
     let result = rooms;
-
-    // Room Type Filter
     if (roomFilter === 'Balcony') {
       result = result.filter((r) =>
         r.amenities?.some((a) => a.toLowerCase().includes('balcony')),
       );
     }
-
-    // Occupants Filter (Max 2 Guests)
     if (occupantsFilter !== 'Any') {
       if (occupantsFilter === '2') {
-        // Strict filter: If user selects 2 guests, ONLY show Twin Suites
         result = result.filter((r) => r.type === 'TWIN SUITE');
       } else {
         const minGuests = parseInt(occupantsFilter);
         result = result.filter((r) => getCapacity(r) >= minGuests);
       }
     }
-
     setFilteredRooms(result);
   }, [roomFilter, occupantsFilter, rooms]);
 
+  // --- HANDLER: OPEN BOOKING MODAL & SET PRICES ---
   const handleBookRoom = (room) => {
     const now = new Date();
     const tzOffset = now.getTimezoneOffset() * 60000;
@@ -446,19 +486,29 @@ const UserDashboard = () => {
     tomorrow.setDate(tomorrow.getDate() + 1);
     const checkOutDate = tomorrow.toISOString().slice(0, 10);
 
+    // 1. Determine which price to use based on current context
+    const useUSD = currency === 'USD' && room.priceUSD && room.priceUSD > 0;
+    const selectedPrice = useUSD ? room.priceUSD : room.price;
+    const selectedCurrency = useUSD ? 'USD' : 'UGX';
+
     setFormData({
       roomId: room.id || room._id,
+      roomName: room.type, 
       checkIn,
       checkOutDate,
       phone: user.phoneNumber || '',
       paymentMethod: 'Mobile Money',
       paymentPhone: user.phoneNumber || '',
       transactionId: '',
+      // 2. Save the determined price and currency
+      price: selectedPrice,
+      currency: selectedCurrency,
     });
-    setMerchantType('MoMo Pay'); // Default sub-tab
+    setMerchantType('MoMo Pay'); 
     setIsModalOpen(true);
   };
 
+  // --- HANDLER: SUBMIT BOOKING ---
   const handleSubmitBooking = async (e) => {
     e.preventDefault();
     setBookingLoading(true);
@@ -470,11 +520,10 @@ const UserDashboard = () => {
         checkOut,
         userId: user.uid,
         guestName: user.name,
-        guestEmail: user.email || null, // Fallback to null (safe for Firestore)
+        guestEmail: user.email || null, 
         guestPhone: formData.phone,
-        guests: 1, // Default 'guests' count
+        guests: 1, 
         status: 'pending',
-        // Only include transactionId if using Merchant Pay AND MoMo Pay
         transactionId:
           formData.paymentMethod === 'Merchant Pay' &&
           merchantType === 'MoMo Pay'
@@ -482,6 +531,10 @@ const UserDashboard = () => {
             : null,
         providerDetail:
           formData.paymentMethod === 'Merchant Pay' ? merchantType : null,
+        
+        // 3. Ensure price/currency is sent in payload
+        amount: formData.price, 
+        currency: formData.currency,
       };
 
       await api.bookings.create(payload);
@@ -507,33 +560,22 @@ const UserDashboard = () => {
     );
   if (!user) return <LoginScreen onLogin={handleLogin} loading={authLoading} />;
 
-  const totalSpent = payments
-    .filter((p) => p.status === 'success' || p.status === 'paid')
-    .reduce((sum, p) => sum + Number(p.amount || 0), 0);
-
   return (
     <div className="min-h-screen bg-[#fcfbf7] font-sans text-gray-900">
       {/* --- Top Navigation --- */}
       <nav className="fixed w-full z-50 bg-white/95 backdrop-blur-md shadow-sm py-4 text-[#0F2027]">
         <div className="max-w-7xl mx-auto px-6 flex justify-between items-center">
-          {/* Logo */}
           <div
             className="flex items-center gap-3 cursor-pointer"
             onClick={() => router.push('/')}
           >
-            <img
-              src="/logo.webp"
-              alt="Mpaata Logo"
-              className="w-10 h-10 object-contain"
-            />
+            <img src="/logo.webp" alt="Logo" className="w-10 h-10 object-contain" />
             <span className="font-serif text-xl md:text-2xl tracking-widest font-semibold uppercase hidden md:block">
               MPAATA
             </span>
           </div>
 
-          {/* Desktop Navigation & User Profile */}
           <div className="hidden md:flex items-center gap-6">
-            {/* Navigation Tabs */}
             <div className="flex gap-1 bg-gray-50/50 p-1 rounded-[2px] border border-gray-100">
               {[
                 { id: 'bookings', label: 'My Bookings', icon: Calendar },
@@ -554,26 +596,16 @@ const UserDashboard = () => {
                 </button>
               ))}
             </div>
-
             <div className="w-px h-8 bg-gray-200"></div>
-
-            {/* User Profile */}
             <div className="flex items-center gap-3">
               <div className="text-right">
                 <p className="text-xs font-bold text-[#0F2027]">{user.name}</p>
-                <button
-                  onClick={handleLogout}
-                  className="text-[10px] text-red-500 hover:underline uppercase tracking-wider font-bold"
-                >
+                <button onClick={handleLogout} className="text-[10px] text-red-500 hover:underline uppercase tracking-wider font-bold">
                   Sign Out
                 </button>
               </div>
               {user.photoURL ? (
-                <img
-                  src={user.photoURL}
-                  alt="Profile"
-                  className="w-9 h-9 rounded-full border border-gray-200 shadow-sm"
-                />
+                <img src={user.photoURL} alt="Profile" className="w-9 h-9 rounded-full border border-gray-200 shadow-sm" />
               ) : (
                 <div className="w-9 h-9 rounded-full bg-[#0F2027] text-[#D4AF37] flex items-center justify-center font-bold">
                   {user.name?.[0]}
@@ -581,20 +613,13 @@ const UserDashboard = () => {
               )}
             </div>
           </div>
-
-          {/* Mobile Toggle */}
-          <button
-            className="md:hidden"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          >
+          <button className="md:hidden" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
             {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
         </div>
 
-        {/* Mobile Menu */}
         {mobileMenuOpen && (
           <div className="absolute top-full left-0 w-full bg-white border-t border-gray-100 shadow-lg p-6 flex flex-col gap-4 md:hidden">
-            {/* Mobile Tabs */}
             {[
               { id: 'bookings', label: 'My Bookings' },
               { id: 'rooms', label: 'Browse Rooms' },
@@ -602,26 +627,15 @@ const UserDashboard = () => {
             ].map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => {
-                  setActiveTab(tab.id);
-                  setMobileMenuOpen(false);
-                }}
-                className={`text-left text-sm font-bold uppercase tracking-widest py-2 border-b border-gray-50 ${
-                  activeTab === tab.id ? 'text-[#0F2027]' : 'text-gray-500'
-                }`}
+                onClick={() => { setActiveTab(tab.id); setMobileMenuOpen(false); }}
+                className={`text-left text-sm font-bold uppercase tracking-widest py-2 border-b border-gray-50 ${activeTab === tab.id ? 'text-[#0F2027]' : 'text-gray-500'}`}
               >
                 {tab.label}
               </button>
             ))}
-
             <div className="flex justify-between items-center mt-2 pt-4 border-t border-gray-100">
               <span className="text-sm font-medium">{user.name}</span>
-              <button
-                onClick={handleLogout}
-                className="text-xs text-red-500 font-bold uppercase"
-              >
-                Sign Out
-              </button>
+              <button onClick={handleLogout} className="text-xs text-red-500 font-bold uppercase">Sign Out</button>
             </div>
           </div>
         )}
@@ -629,7 +643,6 @@ const UserDashboard = () => {
 
       {/* --- Main Content --- */}
       <main className="pt-28 pb-12 px-4 md:px-6 max-w-7xl mx-auto">
-        {/* Header Title */}
         <div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
           <div>
             <h1 className="font-serif text-3xl text-[#0F2027] mb-1">
@@ -638,13 +651,9 @@ const UserDashboard = () => {
               {activeTab === 'payments' && 'Payment History'}
             </h1>
             <p className="text-gray-500 text-sm">
-              {activeTab === 'rooms'
-                ? 'Find the perfect room for your stay.'
-                : 'Manage your account details.'}
+              {activeTab === 'rooms' ? 'Find the perfect room for your stay.' : 'Manage your account details.'}
             </p>
           </div>
-
-          {/* MAKE RESERVATION BUTTON */}
           {activeTab === 'bookings' && (
             <Button onClick={() => setActiveTab('rooms')}>
               <Plus size={16} /> Make Reservation
@@ -652,15 +661,12 @@ const UserDashboard = () => {
           )}
         </div>
 
-        {/* --- ROOMS TAB (WITH FILTERS) --- */}
+        {/* --- ROOMS TAB --- */}
         {activeTab === 'rooms' && (
           <div className="animate-fade-in-up">
-            {/* Filters Bar */}
             <div className="bg-white p-4 rounded-[2px] shadow-sm border border-gray-100 mb-8 flex flex-col md:flex-row gap-6 items-center justify-between">
               <div className="flex items-center gap-3 w-full md:w-auto">
-                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                  Occupants:
-                </span>
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Occupants:</span>
                 <select
                   value={occupantsFilter}
                   onChange={(e) => setOccupantsFilter(e.target.value)}
@@ -677,9 +683,7 @@ const UserDashboard = () => {
                     key={filter}
                     onClick={() => setRoomFilter(filter)}
                     className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider border transition-all whitespace-nowrap ${
-                      roomFilter === filter
-                        ? 'bg-[#0F2027] text-[#D4AF37] border-[#0F2027]'
-                        : 'bg-white text-gray-500 border-gray-200 hover:border-[#D4AF37]'
+                      roomFilter === filter ? 'bg-[#0F2027] text-[#D4AF37] border-[#0F2027]' : 'bg-white text-gray-500 border-gray-200 hover:border-[#D4AF37]'
                     }`}
                   >
                     {filter}
@@ -688,12 +692,12 @@ const UserDashboard = () => {
               </div>
             </div>
 
-            {/* Room Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredRooms.map((room) => (
                 <RoomCard
                   key={room.id || room._id || room.key}
                   room={room}
+                  currency={currency} 
                   image={getRoomImage(room)}
                   onBook={handleBookRoom}
                 />
@@ -702,44 +706,32 @@ const UserDashboard = () => {
           </div>
         )}
 
-        {/* --- BOOKINGS TAB --- */}
+        {/* --- BOOKINGS TAB (Updated for USD) --- */}
         {activeTab === 'bookings' && (
           <div className="bg-white rounded-[2px] shadow-sm border border-gray-100 overflow-hidden animate-fade-in-up">
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
-                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">
-                      Room
-                    </th>
-                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">
-                      Dates
-                    </th>
-                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">
-                      Total
-                    </th>
-                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">
-                      Status
-                    </th>
+                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Room</th>
+                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Dates</th>
+                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Total</th>
+                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {bookings.map((booking) => (
                     <tr key={booking.id} className="hover:bg-gray-50/50">
                       <td className="px-6 py-4">
-                        <p className="font-bold text-[#0F2027] text-sm">
-                          {booking.roomName || 'Suite'}
-                        </p>
-                        <p className="text-xs text-gray-400">
-                          ID: {booking.id.slice(0, 8)}
-                        </p>
+                        <p className="font-bold text-[#0F2027] text-sm">{booking.roomName || 'Suite'}</p>
+                        <p className="text-xs text-gray-400">ID: {booking.id.slice(0, 8)}</p>
                       </td>
                       <td className="px-6 py-4 text-xs text-gray-600">
-                        {new Date(booking.checkIn).toLocaleDateString()} -{' '}
-                        {new Date(booking.checkOut).toLocaleDateString()}
+                        {new Date(booking.checkIn).toLocaleDateString()} - {new Date(booking.checkOut).toLocaleDateString()}
                       </td>
-                      <td className="px-6 py-4 font-medium text-sm">
-                        UGX {booking.totalPrice?.toLocaleString()}
+                      <td className="px-6 py-4 font-medium text-sm text-[#0F2027]">
+                        {/* Check if booking has currency saved, fallback to UGX */}
+                        {booking.currency === 'USD' ? '$' : 'UGX '}{booking.totalPrice?.toLocaleString()}
                       </td>
                       <td className="px-6 py-4">
                         <StatusBadge status={booking.status} />
@@ -748,17 +740,8 @@ const UserDashboard = () => {
                   ))}
                   {bookings.length === 0 && (
                     <tr>
-                      <td
-                        colSpan="4"
-                        className="px-6 py-12 text-center text-gray-400"
-                      >
-                        No active bookings found.{' '}
-                        <button
-                          onClick={() => setActiveTab('rooms')}
-                          className="text-[#D4AF37] underline"
-                        >
-                          Book a room
-                        </button>
+                      <td colSpan="4" className="px-6 py-12 text-center text-gray-400">
+                        No active bookings found. <button onClick={() => setActiveTab('rooms')} className="text-[#D4AF37] underline">Book a room</button>
                       </td>
                     </tr>
                   )}
@@ -768,78 +751,48 @@ const UserDashboard = () => {
           </div>
         )}
 
-        {/* --- PAYMENTS TAB --- */}
+        {/* --- PAYMENTS TAB (Updated for USD) --- */}
         {activeTab === 'payments' && (
           <div className="bg-white rounded-[2px] shadow-sm border border-gray-100 p-8 text-center animate-fade-in-up">
             <div className="mb-8">
               <DollarSign size={40} className="mx-auto text-gray-300 mb-2" />
-              <h3 className="text-lg font-serif text-gray-500">
-                Payment History
-              </h3>
-              <p className="text-xs text-gray-400">
-                Total Spent:{' '}
-                <span className="font-bold text-[#0F2027]">
-                  UGX {totalSpent.toLocaleString()}
-                </span>
-              </p>
+              <h3 className="text-lg font-serif text-gray-500">Payment History</h3>
             </div>
 
             <div className="max-w-2xl mx-auto space-y-3 text-left">
               {payments.map((payment) => {
-                const booking = bookings.find(
-                  (b) => b.id === payment.bookingId,
-                );
-                const displayRoom = booking
-                  ? booking.roomName
-                  : `Booking ${payment.bookingId?.slice(0, 6) || 'Ref'}`;
-
-                const canRetry =
-                  (payment.status === 'failed' ||
-                    payment.status === 'pending') &&
-                  (payment.provider === 'Mobile Money' ||
-                    payment.provider === 'mobile_money');
+                const booking = bookings.find((b) => b.id === payment.bookingId);
+                const displayRoom = booking ? booking.roomName : `Booking ${payment.bookingId?.slice(0, 6) || 'Ref'}`;
+                const canRetry = (payment.status === 'failed' || payment.status === 'pending') && 
+                               (payment.provider?.toLowerCase().includes('mobile'));
+                
+                // Determine payment currency (fallback to UGX)
+                const payCurrency = payment.currency === 'USD' ? '$' : 'UGX ';
 
                 return (
-                  <div
-                    key={payment.id}
-                    className="flex justify-between items-center p-4 border border-gray-100 rounded-[2px] hover:border-[#D4AF37] transition-all bg-gray-50/30"
-                  >
+                  <div key={payment.id} className="flex justify-between items-center p-4 border border-gray-100 rounded-[2px] hover:border-[#D4AF37] transition-all bg-gray-50/30">
                     <div>
-                      <p className="text-xs font-bold text-[#0F2027]">
-                        {displayRoom}
-                      </p>
+                      <p className="text-xs font-bold text-[#0F2027]">{displayRoom}</p>
                       <div className="flex gap-2 text-[10px] text-gray-400">
-                        <span>
-                          {new Date(payment.date).toLocaleDateString()}
-                        </span>
+                        <span>{new Date(payment.date).toLocaleDateString()}</span>
                         <span>•</span>
                         <span className="capitalize">{payment.provider}</span>
-                        {payment.phone && (
-                          <>
-                            <span>•</span>
-                            <span>{payment.phone}</span>
-                          </>
-                        )}
+                        {payment.phone && <><span>•</span><span>{payment.phone}</span></>}
                       </div>
                     </div>
                     <div className="text-right flex flex-col items-end gap-1">
                       <span className="block font-bold text-sm text-[#0F2027]">
-                        UGX {Number(payment.amount).toLocaleString()}
+                         {payCurrency}{Number(payment.amount).toLocaleString()}
                       </span>
                       <StatusBadge status={payment.status} type="payment" />
 
-                      {/* Retry Button */}
                       {canRetry && (
                         <button
                           onClick={() => handleRetryPayment(payment)}
                           disabled={retryLoadingId === payment.id}
                           className="text-[10px] font-bold text-amber-600 flex items-center justify-end gap-1 mt-1 hover:underline ml-auto"
                         >
-                          {retryLoadingId === payment.id ? (
-                            <Loader2 size={10} className="animate-spin" />
-                          ) : (
-                            <RefreshCw size={10} />
-                          )}
+                          {retryLoadingId === payment.id ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />}
                           Retry
                         </button>
                       )}
@@ -847,11 +800,7 @@ const UserDashboard = () => {
                   </div>
                 );
               })}
-              {payments.length === 0 && (
-                <p className="text-sm text-gray-400">
-                  No payment records found.
-                </p>
-              )}
+              {payments.length === 0 && <p className="text-sm text-gray-400">No payment records found.</p>}
             </div>
           </div>
         )}
@@ -861,23 +810,23 @@ const UserDashboard = () => {
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0F2027]/80 backdrop-blur-sm">
           <div className="bg-white w-full max-w-lg rounded-[2px] shadow-2xl p-6 relative">
-            <button
-              onClick={() => setIsModalOpen(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-red-500"
-            >
+            <button onClick={() => setIsModalOpen(false)} className="absolute top-4 right-4 text-gray-400 hover:text-red-500">
               <X size={20} />
             </button>
-            <h2 className="font-serif text-xl text-[#0F2027] mb-6">
-              Complete Booking
-            </h2>
+            <h2 className="font-serif text-xl text-[#0F2027] mb-1">Complete Booking</h2>
+            {/* Display Price Summary in Modal */}
+            <p className="text-sm text-gray-500 mb-6">
+              Total: <span className="font-bold text-[#D4AF37]">
+                {formData.currency === 'USD' ? '$' : 'UGX'} {Number(formData.price).toLocaleString()}
+              </span> / night
+            </p>
+
             <form onSubmit={handleSubmitBooking} className="space-y-4">
               <div className="grid grid-cols-1 gap-4">
                 <Input
                   label="Your Contact Phone"
                   value={formData.phone}
-                  onChange={(e) =>
-                    setFormData({ ...formData, phone: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   icon={Phone}
                   required
                   placeholder="+256..."
@@ -886,63 +835,42 @@ const UserDashboard = () => {
 
               <div className="grid grid-cols-2 gap-4">
                 <Input
-                  label="Check In (Date & Time)"
+                  label="Check In"
                   type="datetime-local"
                   value={formData.checkIn}
-                  onChange={(e) =>
-                    setFormData({ ...formData, checkIn: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, checkIn: e.target.value })}
                   required
                 />
                 <div className="space-y-1.5">
-                  <label className="block text-xs uppercase tracking-widest text-gray-500 mb-1.5">
-                    Check Out
-                  </label>
+                  <label className="block text-xs uppercase tracking-widest text-gray-500 mb-1.5">Check Out</label>
                   <div className="flex">
                     <input
                       type="date"
                       value={formData.checkOutDate}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          checkOutDate: e.target.value,
-                        })
-                      }
+                      onChange={(e) => setFormData({ ...formData, checkOutDate: e.target.value })}
                       className="w-full bg-[#fcfbf7] border border-gray-200 border-r-0 rounded-l-[2px] py-2.5 pl-4 pr-2 text-sm focus:outline-none focus:border-[#D4AF37] transition-colors"
                       required
                     />
                     <div className="bg-gray-100 border border-gray-200 px-3 flex items-center rounded-r-[2px]">
-                      <span className="text-xs font-bold text-gray-500 whitespace-nowrap">
-                        10:00 AM
-                      </span>
+                      <span className="text-xs font-bold text-gray-500 whitespace-nowrap">10:00 AM</span>
                     </div>
                   </div>
                 </div>
               </div>
 
               <div className="bg-amber-50 border border-amber-200 p-3 rounded-[2px] flex items-start gap-2">
-                <AlertTriangle
-                  className="text-amber-600 mt-0.5 shrink-0"
-                  size={14}
-                />
-                <p className="text-xs text-amber-800">
-                  Standard checkout time is <strong>10:00 AM</strong>. Late
-                  checkout may incur extra charges.
-                </p>
+                <AlertTriangle className="text-amber-600 mt-0.5 shrink-0" size={14} />
+                <p className="text-xs text-amber-800">Standard checkout time is <strong>10:00 AM</strong>. Late checkout may incur extra charges.</p>
               </div>
 
               <div className="pt-2 border-t border-gray-100 mt-2">
-                <label className="block text-xs uppercase tracking-widest text-gray-500 mb-3">
-                  Payment Method
-                </label>
+                <label className="block text-xs uppercase tracking-widest text-gray-500 mb-3">Payment Method</label>
                 <div className="grid grid-cols-3 gap-2 mb-4">
                   {['Mobile Money', 'Merchant Pay', 'Cash'].map((method) => (
                     <button
                       key={method}
                       type="button"
-                      onClick={() =>
-                        setFormData({ ...formData, paymentMethod: method })
-                      }
+                      onClick={() => setFormData({ ...formData, paymentMethod: method })}
                       className={`py-2 px-1 text-xs font-medium border rounded-[2px] transition-all ${
                         formData.paymentMethod === method
                           ? 'bg-[#0F2027] text-[#D4AF37] border-[#0F2027]'
@@ -959,33 +887,19 @@ const UserDashboard = () => {
                     <Input
                       label="Momo Number for Payment"
                       value={formData.paymentPhone}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          paymentPhone: e.target.value,
-                        })
-                      }
+                      onChange={(e) => setFormData({ ...formData, paymentPhone: e.target.value })}
                       icon={Phone}
                       placeholder="Enter number to charge..."
                       required
                     />
-                    <p className="text-[10px] text-gray-500 mt-1">
-                      A payment prompt will be sent to this number.
-                    </p>
+                    <p className="text-[10px] text-gray-500 mt-1">A payment prompt will be sent to this number.</p>
                   </div>
                 )}
 
                 {formData.paymentMethod === 'Merchant Pay' && (
                   <div className="bg-blue-50 p-4 border border-blue-100 rounded-[2px]">
-                    <CreditCard
-                      className="mx-auto text-blue-500 mb-2"
-                      size={24}
-                    />
-                    <p className="text-xs text-blue-800 text-center mb-3">
-                      Use the codes below to pay via Merchant ID:
-                    </p>
-
-                    {/* Secondary Tabs for Merchant Provider */}
+                    <CreditCard className="mx-auto text-blue-500 mb-2" size={24} />
+                    <p className="text-xs text-blue-800 text-center mb-3">Use the codes below to pay via Merchant ID:</p>
                     <div className="flex border-b border-blue-200 mb-4 bg-white rounded-[2px] overflow-hidden">
                       {['MoMo Pay', 'Airtel Pay'].map((type) => (
                         <button
@@ -993,51 +907,32 @@ const UserDashboard = () => {
                           type="button"
                           onClick={() => setMerchantType(type)}
                           className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider transition-colors ${
-                            merchantType === type
-                              ? 'bg-[#0F2027] text-[#D4AF37]'
-                              : 'bg-white text-gray-400 hover:text-gray-600 hover:bg-gray-50'
+                            merchantType === type ? 'bg-[#0F2027] text-[#D4AF37]' : 'bg-white text-gray-400 hover:text-gray-600 hover:bg-gray-50'
                           }`}
                         >
                           {type}
                         </button>
                       ))}
                     </div>
-
-                    {/* Display Code based on Sub-tab */}
                     <div className="mb-4 p-3 bg-white border border-dashed border-blue-200 rounded-sm text-center">
                       {merchantType === 'MoMo Pay' ? (
                         <div className="flex flex-col gap-1">
-                          <p className="text-xs text-gray-400 uppercase tracking-widest">
-                            MoMo Pay Code
-                          </p>
-                          <span className="text-xl font-bold text-[#0F2027] tracking-wider">
-                            92620395
-                          </span>
+                          <p className="text-xs text-gray-400 uppercase tracking-widest">MoMo Pay Code</p>
+                          <span className="text-xl font-bold text-[#0F2027] tracking-wider">92620395</span>
                         </div>
                       ) : (
                         <div className="flex flex-col gap-1">
-                          <p className="text-xs text-gray-400 uppercase tracking-widest">
-                            Airtel Pay Code
-                          </p>
-                          <span className="text-xl font-bold text-red-600 tracking-wider">
-                            4392569
-                          </span>
+                          <p className="text-xs text-gray-400 uppercase tracking-widest">Airtel Pay Code</p>
+                          <span className="text-xl font-bold text-red-600 tracking-wider">4392569</span>
                         </div>
                       )}
                     </div>
-
-                    {/* Transaction ID Input - ONLY for MoMo Pay */}
                     {merchantType === 'MoMo Pay' && (
                       <div className="animate-fade-in-up">
                         <Input
                           label="Transaction ID (Required)"
                           value={formData.transactionId}
-                          onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              transactionId: e.target.value,
-                            })
-                          }
+                          onChange={(e) => setFormData({ ...formData, transactionId: e.target.value })}
                           icon={Hash}
                           placeholder="Enter MoMo Ref ID..."
                           required
@@ -1049,32 +944,16 @@ const UserDashboard = () => {
 
                 {formData.paymentMethod === 'Cash' && (
                   <div className="bg-green-50 p-4 border border-green-100 rounded-[2px] text-center">
-                    <DollarSign
-                      className="mx-auto text-green-600 mb-2"
-                      size={24}
-                    />
-                    <p className="text-xs text-green-800">
-                      Pay at the hotel front desk upon arrival.
-                    </p>
+                    <DollarSign className="mx-auto text-green-600 mb-2" size={24} />
+                    <p className="text-xs text-green-800">Pay at the hotel front desk upon arrival.</p>
                   </div>
                 )}
               </div>
 
               <div className="pt-4 flex justify-end gap-3">
-                <Button
-                  variant="secondary"
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  disabled={bookingLoading}
-                >
-                  Cancel
-                </Button>
+                <Button variant="secondary" type="button" onClick={() => setIsModalOpen(false)} disabled={bookingLoading}>Cancel</Button>
                 <Button type="submit" disabled={bookingLoading}>
-                  {bookingLoading ? (
-                    <Loader2 className="animate-spin" size={16} />
-                  ) : (
-                    'Confirm Booking'
-                  )}
+                  {bookingLoading ? <Loader2 className="animate-spin" size={16} /> : 'Confirm Booking'}
                 </Button>
               </div>
             </form>
@@ -1090,14 +969,9 @@ const UserDashboard = () => {
               <div className="w-12 h-12 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-3">
                 <AlertCircle className="text-amber-500" size={24} />
               </div>
-              <h2 className="font-serif text-2xl text-[#0F2027] mb-2">
-                Complete Profile
-              </h2>
-              <p className="text-gray-500 text-sm">
-                Please provide your phone number to continue with bookings.
-              </p>
+              <h2 className="font-serif text-2xl text-[#0F2027] mb-2">Complete Profile</h2>
+              <p className="text-gray-500 text-sm">Please provide your phone number to continue with bookings.</p>
             </div>
-
             <form onSubmit={handleSavePhoneNumber} className="space-y-4">
               <Input
                 label="Phone Number"
@@ -1108,13 +982,8 @@ const UserDashboard = () => {
                 placeholder="+256..."
                 autoFocus
               />
-
               <Button type="submit" className="w-full" disabled={phoneSaving}>
-                {phoneSaving ? (
-                  <Loader2 className="animate-spin" size={16} />
-                ) : (
-                  'Save & Continue'
-                )}
+                {phoneSaving ? <Loader2 className="animate-spin" size={16} /> : 'Save & Continue'}
               </Button>
             </form>
           </div>

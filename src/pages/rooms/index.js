@@ -27,13 +27,25 @@ import { api } from '@/libs/apiAgent';
  * MPAATA EMPIRE - ROOMS PAGE
  */
 
+// --- 1. GEOLOCATION UTILITY ---
+const getCountryCode = async () => {
+  try {
+    const response = await fetch('https://ipwho.is/');
+    const data = await response.json();
+    return data.country_code; 
+  } catch (error) {
+    console.error("Failed to fetch location", error);
+    return 'UG'; // Default to Uganda on error
+  }
+};
+
 // --- Design Assets ---
 const IMAGES = {
   hero: 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?q=80&w=2070&auto=format&fit=crop',
   defaultPlaceholder: 'suit.jpg',
 };
 
-// --- Helper: Image Mapping Logic (Strict .webp) ---
+// --- Helper: Image Mapping Logic ---
 const getRoomImage = (room) => {
   const roomNumStr = room.roomNumber?.toString() || '';
   const num = parseInt(roomNumStr.replace(/\D/g, '') || '0');
@@ -114,18 +126,17 @@ const Navbar = () => {
   };
 
   const navigateToDashboard = () => {
-    router.push('/my');
+    router.push(getDashboardLink());
     setDropdownOpen(false);
   };
 
   const handleLogin = () => {
-    router.push('/my');
+    router.push(getDashboardLink());
   };
 
   return (
     <nav className="fixed w-full z-50 bg-white/95 backdrop-blur-md shadow-sm py-4 text-[#0F2027]">
       <div className="max-w-7xl mx-auto px-6 flex justify-between items-center">
-        {/* Logo with Image */}
         <div
           className="flex items-center gap-3 cursor-pointer"
           onClick={() => router.push('/')}
@@ -140,7 +151,6 @@ const Navbar = () => {
           </span>
         </div>
 
-        {/* Desktop Menu */}
         <div className="hidden md:flex items-center gap-8 font-sans text-xs tracking-[0.15em] uppercase font-medium">
           {['Home', 'Royal Suites'].map((item) => (
             <a
@@ -154,7 +164,6 @@ const Navbar = () => {
 
           {user ? (
             isAdmin ? (
-              // ADMIN VIEW
               <Button
                 onClick={() => router.push(getDashboardLink())}
                 type="primary"
@@ -163,7 +172,6 @@ const Navbar = () => {
                 Access Dashboard
               </Button>
             ) : (
-              // CLIENT VIEW
               <div className="relative">
                 <button
                   onClick={() => setDropdownOpen(!dropdownOpen)}
@@ -191,7 +199,6 @@ const Navbar = () => {
                   />
                 </button>
 
-                {/* Dropdown */}
                 {dropdownOpen && (
                   <div className="absolute right-0 mt-3 w-48 bg-white rounded-[2px] shadow-xl border border-gray-100 py-1 animate-fade-in-up origin-top-right">
                     <div className="px-4 py-2 border-b border-gray-50">
@@ -245,7 +252,6 @@ const Navbar = () => {
           )}
         </div>
 
-        {/* Mobile Toggle */}
         <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           className="md:hidden"
@@ -254,7 +260,6 @@ const Navbar = () => {
         </button>
       </div>
 
-      {/* Mobile Menu */}
       {mobileMenuOpen && (
         <div className="absolute top-full left-0 w-full bg-white text-[#0F2027] shadow-xl p-8 flex flex-col gap-6 md:hidden border-t border-gray-100">
           <a
@@ -311,14 +316,13 @@ const Navbar = () => {
   );
 };
 
-// --- Room Card (Single Image) ---
-const RoomCard = ({ type, price, title, onClick, image, amenities }) => {
+// --- 2. UPDATED ROOM CARD (Supports Currency) ---
+const RoomCard = ({ type, price, currency, title, onClick, image, amenities }) => {
   return (
     <div
       className="group bg-white rounded-[2px] shadow-sm hover:shadow-xl transition-all duration-500 overflow-hidden flex flex-col h-full border border-gray-100 hover:border-[#D4AF37]"
       onClick={onClick}
     >
-      {/* Image */}
       <div className="relative h-64 overflow-hidden bg-gray-100">
         <div className="absolute inset-0 bg-[#0F2027]/10 group-hover:bg-transparent transition-colors z-10 pointer-events-none"></div>
         <img
@@ -334,7 +338,6 @@ const RoomCard = ({ type, price, title, onClick, image, amenities }) => {
         </div>
       </div>
 
-      {/* Content */}
       <div className="p-8 flex flex-col flex-grow">
         <div className="flex justify-between items-start mb-4">
           <div>
@@ -347,8 +350,9 @@ const RoomCard = ({ type, price, title, onClick, image, amenities }) => {
             </p>
           </div>
           <div className="text-right">
+            {/* PRICE DISPLAY LOGIC */}
             <span className="block font-serif text-lg text-[#D4AF37] font-bold">
-              UGX {Number(price).toLocaleString()}
+              {currency === 'USD' ? '$' : 'UGX '} {Number(price).toLocaleString()}
             </span>
             <span className="text-[10px] text-gray-400 uppercase">
               Per Night
@@ -363,7 +367,6 @@ const RoomCard = ({ type, price, title, onClick, image, amenities }) => {
           featuring satin blue accents and royal gold finishes.
         </p>
 
-        {/* Amenities */}
         <div className="mb-8">
           <div className="flex flex-wrap gap-2">
             {amenities?.slice(0, 3).map((amenity, index) => (
@@ -382,7 +385,6 @@ const RoomCard = ({ type, price, title, onClick, image, amenities }) => {
           </div>
         </div>
 
-        {/* Action */}
         <div className="mt-auto pt-6 border-t border-gray-50">
           <button className="w-full group/btn flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-widest text-[#0F2027] hover:text-[#D4AF37] transition-colors">
             View Details
@@ -414,14 +416,17 @@ const Footer = () => (
 // --- Page Component ---
 
 const RoomsPage = () => {
-  const router = useRouter(); // Defined correctly
+  const router = useRouter(); 
   const [rooms, setRooms] = useState([]);
   const [filteredRooms, setFilteredRooms] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // --- 3. CURRENCY STATE ---
+  const [currency, setCurrency] = useState('UGX'); // Default to UGX
+
   // Filter States
-  const [activeFilter, setActiveFilter] = useState('All'); // 'All' or 'Balcony'
-  const [occupants, setOccupants] = useState('Any'); // 'Any', '1', '2'
+  const [activeFilter, setActiveFilter] = useState('All'); 
+  const [occupants, setOccupants] = useState('Any');
 
   useEffect(() => {
     const fetchRooms = async () => {
@@ -440,21 +445,31 @@ const RoomsPage = () => {
     fetchRooms();
   }, []);
 
+  // --- 4. GEOLOCATION EFFECT ---
+  useEffect(() => {
+    const determineCurrency = async () => {
+      const code = await getCountryCode();
+      if (code !== 'UG') {
+        setCurrency('USD');
+      }
+    };
+    determineCurrency();
+  }, []);
+
   // --- Filtering Logic ---
   useEffect(() => {
     let result = rooms;
 
-    // 1. Filter by Category (Buttons)
+    // 1. Filter by Category 
     if (activeFilter === 'Balcony') {
       result = result.filter((r) =>
         r.amenities?.some((a) => a.toLowerCase().includes('balcony')),
       );
     }
 
-    // 2. Filter by Occupants (Dropdown)
+    // 2. Filter by Occupants 
     if (occupants !== 'Any') {
       if (occupants === '2') {
-        // Strict filter: If user selects 2 guests, ONLY show Twin Suites
         result = result.filter((r) => r.type === 'TWIN SUITE');
       } else {
         const minGuests = parseInt(occupants);
@@ -492,7 +507,6 @@ const RoomsPage = () => {
       {/* --- Filter Bar --- */}
       <div className="bg-white border-b border-gray-200 sticky top-[72px] z-40 shadow-sm">
         <div className="max-w-7xl mx-auto px-6 py-4 flex flex-col md:flex-row gap-6 items-center justify-between">
-          {/* Left: Occupants Filter (Max 2 beds) */}
           <div className="flex items-center gap-3 w-full md:w-auto">
             <div className="flex items-center gap-2 text-gray-500 text-sm min-w-fit">
               <User size={16} />
@@ -511,7 +525,6 @@ const RoomsPage = () => {
             </select>
           </div>
 
-          {/* Right: Feature Filters (Removed Ground/First Floor) */}
           <div className="flex gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0 no-scrollbar">
             {['All', 'Balcony'].map((filter) => (
               <button
@@ -560,17 +573,28 @@ const RoomsPage = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {filteredRooms.map((room) => (
-              <RoomCard
-                key={room.id || room._id || room.key}
-                type={room.type}
-                title={room.roomNumber ? `Suite ${room.roomNumber}` : room.type}
-                price={room.price}
-                amenities={room.amenities}
-                image={getRoomImage(room)}
-                onClick={() => router.push('/my')}
-              />
-            ))}
+            {filteredRooms.map((room) => {
+              // --- 5. RENDER LOGIC ---
+              // If currency is USD and the room actually has a priceUSD value, use it.
+              // Otherwise, fallback to local UGX price.
+              const useUSD = currency === 'USD' && room.priceUSD && room.priceUSD > 0;
+              const displayPrice = useUSD ? room.priceUSD : room.price;
+              const displayCurrency = useUSD ? 'USD' : 'UGX';
+
+              return (
+                <RoomCard
+                  key={room.id || room._id || room.key}
+                  type={room.type}
+                  title={room.roomNumber ? `Suite ${room.roomNumber}` : room.type}
+                  // Pass the calculated price and currency
+                  price={displayPrice}
+                  currency={displayCurrency}
+                  amenities={room.amenities}
+                  image={getRoomImage(room)}
+                  onClick={() => router.push(getDashboardLink())}
+                />
+              );
+            })}
           </div>
         )}
       </main>

@@ -46,6 +46,7 @@ const SHOWCASE_ROOMS = [
     id: '5B73XBDnXjKyAo8Hxgxk',
     type: 'ROYAL 1',
     price: 150000,
+    priceUSD: 48,
     roomNumber: 'ROYAL 1',
     description:
       'Comfortable deluxe room on the first floor with air conditioning, a fridge. a television, a tea setup and access to wifi.',
@@ -55,6 +56,7 @@ const SHOWCASE_ROOMS = [
     id: 'sv5Pa3CmQWbMvkCFkFsD',
     type: 'ROYAL 2',
     price: 150000,
+    priceUSD: 48,
     roomNumber: 'ROYAL 2',
     description:
       'Comfortable deluxe room on the first floor with air conditioning, a fridge. a television, a tea setup and access to wifi.',
@@ -64,6 +66,7 @@ const SHOWCASE_ROOMS = [
     id: '8MvOXfuseVdgVZdNuGf8',
     type: 'DELUXY SUITE',
     price: 120000,
+    priceUSD: 38,
     roomNumber: 'M12',
     description:
       'Comfortable deluxe room on the first floor with air conditioning, a fridge. a television, a tea setup and access to wifi.',
@@ -140,12 +143,12 @@ const Navbar = () => {
   };
 
   const navigateToDashboard = (tab) => {
-    router.push('/my');
+    router.push(getDashboardLink());
     setDropdownOpen(false);
   };
 
   const handleLogin = () => {
-    router.push('/my');
+    router.push(getDashboardLink());
   };
 
   return (
