@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import {
   TrendingUp, Users, Calendar, CheckCircle, 
   ShoppingBag, Loader2, DollarSign, PieChart as PieIcon,
-  ArrowUpRight, ArrowDownRight
+  ArrowUpRight, ArrowDownRight, Smartphone, Banknote, Hash, CreditCard
 } from 'lucide-react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, 
@@ -17,13 +17,21 @@ import { api } from '@/libs/apiAgent';
 
 // --- THEME COLORS ---
 const THEME = {
-  primary: '#0F2027',   // Satin Blue
-  secondary: '#D4AF37', // Gold
+  primary: '#0F2027',   // Satin Blue (Mobile Money)
+  secondary: '#D4AF37', // Gold (Cash)
   accent: '#F3E5AB',    // Champagne
+  merchant: '#06b6d4',  // Cyan (Merchant Pay)
   gray: '#9ca3af'
 };
 
-const PIE_COLORS = [THEME.primary, THEME.secondary, '#CD7F32', '#E5E7EB']; // Blue, Gold, Bronze, Gray
+// Maps specific payment methods to colors for the Pie Chart
+const getColorForMethod = (name) => {
+  const n = name?.toLowerCase() || '';
+  if (n.includes('mobile')) return THEME.primary;
+  if (n.includes('cash')) return THEME.secondary;
+  if (n.includes('merchant')) return THEME.merchant;
+  return '#E5E7EB'; // Gray for unknown
+};
 
 // --- Helper Components ---
 
@@ -61,6 +69,15 @@ const StatCard = ({ title, value, prefix, suffix, icon: Icon, trend }) => (
     <div className="absolute bottom-0 left-0 w-full h-[2px] bg-gradient-to-r from-[#0F2027] via-[#D4AF37] to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
   </div>
 );
+
+// Payment Icon Helper
+const PaymentIcon = ({ method }) => {
+  const m = method?.toLowerCase() || '';
+  if (m.includes('mobile')) return <Smartphone size={14} className="text-[#0F2027]" />;
+  if (m.includes('cash')) return <Banknote size={14} className="text-[#D4AF37]" />;
+  if (m.includes('merchant')) return <Hash size={14} className="text-[#06b6d4]" />;
+  return <CreditCard size={14} className="text-gray-400" />;
+};
 
 const DashboardPage = () => {
   const [loading, setLoading] = useState(true);
@@ -265,7 +282,7 @@ const DashboardPage = () => {
                     stroke="none"
                   >
                     {data.payments.breakdown.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                      <Cell key={`cell-${index}`} fill={getColorForMethod(entry.name)} />
                     ))}
                   </Pie>
                   <RechartsTooltip 
@@ -301,6 +318,7 @@ const DashboardPage = () => {
                 <tr>
                   <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">ID</th>
                   <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Guest</th>
+                  <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Payment</th>
                   <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Status</th>
                   <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider text-right">Amount</th>
                 </tr>
@@ -321,6 +339,12 @@ const DashboardPage = () => {
                         </div>
                       </td>
                       <td className="px-6 py-4">
+                        <div className="flex items-center gap-2 text-xs text-gray-600">
+                          <PaymentIcon method={booking.paymentMethod} />
+                          <span className="capitalize">{booking.paymentMethod || 'Unknown'}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
                         <span className={`px-2 py-1 rounded-[2px] text-[10px] font-bold uppercase tracking-wider border ${
                           booking.status === 'confirmed' ? 'bg-green-50 text-green-700 border-green-100' :
                           booking.status === 'pending' ? 'bg-amber-50 text-amber-700 border-amber-100' :
@@ -336,7 +360,7 @@ const DashboardPage = () => {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="4" className="px-6 py-8 text-center text-gray-400 text-sm">
+                    <td colSpan="5" className="px-6 py-8 text-center text-gray-400 text-sm">
                       No recent bookings found.
                     </td>
                   </tr>

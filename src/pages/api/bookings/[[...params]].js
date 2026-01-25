@@ -1,7 +1,6 @@
 import { admin, db } from '@/libs/firebaseAdmin';
 import { runMiddleware, verifyToken, hasRole, formatPhoneNumber } from '@/libs/middleware';
 import Cors from 'cors';
-import axios from 'axios';
 
 const cors = Cors({ methods: ['GET', 'POST', 'PUT', 'HEAD'] });
 
@@ -54,7 +53,6 @@ export default async function handler(req, res) {
   const user = await verifyToken(req, res);
   if (!user) return; 
 
-  // Capture params. URL /api/bookings/me -> params=['me']
   const { params } = req.query;
   const slug1 = params ? params[0] : null; 
   const slug2 = params ? params[1] : null;
@@ -85,31 +83,70 @@ export default async function handler(req, res) {
 
     // POST /api/bookings (Create)
     if (!slug1 && req.method === 'POST') {
-      const { roomId, checkIn, checkOut, guestName, guestPhone, guestEmail, guests, status, paymentMethod, paymentStatus, receivedBy, paymentPhone } = req.body;
+      const { 
+        roomId, checkIn, checkOut, guestName, guestPhone, guestEmail, guests, 
+        status, paymentMethod, paymentStatus, receivedBy, paymentPhone,
+        transactionId, providerDetail 
+      } = req.body;
+
       const start = new Date(checkIn);
       const end = new Date(checkOut);
+      const now = new Date();
       
       const isAvailable = await checkAvailability(roomId, start, end);
       if (!isAvailable) return res.status(409).json({ error: 'Room unavailable' });
 
       const userId = await findOrCreateUser(guestName, guestPhone, guestEmail);
       const roomDoc = await db.collection('rooms').doc(roomId).get();
+      
+      if (!roomDoc.exists) return res.status(404).json({ error: 'Room not found' });
+
       const totalPrice = roomDoc.data().price * (Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24))));
       const formattedPayPhone = paymentMethod === 'Mobile Money' ? formatPhoneNumber(paymentPhone) : null;
+
+      // Force confirmed if transaction ID is present
+      let finalStatus = status || 'pending';
+      let finalPaymentStatus = paymentStatus || 'unpaid';
+      
+      if (transactionId) {
+        finalStatus = 'confirmed';
+        finalPaymentStatus = 'paid';
+      }
 
       const bookingRef = await db.collection('bookings').add({
         roomId, userId, guestName, guestPhone: formatPhoneNumber(guestPhone),
         guestEmail, guests, checkIn: start, checkOut: end,
-        totalPrice, status: status || 'pending', paymentStatus: paymentStatus || 'unpaid',
+        totalPrice, 
+        status: finalStatus, 
+        paymentStatus: finalPaymentStatus,
         paymentMethod, paymentPhone: formattedPayPhone,
+        receivedBy: receivedBy || null,
+        transactionId: transactionId || null, 
+        providerDetail: providerDetail || null,
         createdAt: admin.firestore.FieldValue.serverTimestamp(), createdBy: user.uid
       });
+
+      // --- CRITICAL FIX: Update Room Status in Database ---
+      // If the booking is happening RIGHT NOW (starts in past/now and ends in future)
+      // We explicitly update the room document to 'Occupied'.
+      if (start <= now && end > now && (finalStatus === 'confirmed' || finalStatus === 'pending')) {
+         await db.collection('rooms').doc(roomId).update({
+           status: 'Occupied',
+           nextAvailable: end.toISOString()
+         });
+      }
+      // ----------------------------------------------------
 
       const myReference = 'TX-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
       await db.collection('payments').add({
         bookingId: bookingRef.id, userId, amount: totalPrice, currency: 'UGX',
-        provider: paymentMethod, phone: formattedPayPhone, status: paymentStatus || 'pending',
-        customer_reference: myReference, createdAt: admin.firestore.FieldValue.serverTimestamp()
+        provider: paymentMethod, 
+        providerDetail: providerDetail || null,
+        phone: formattedPayPhone, 
+        status: finalPaymentStatus,
+        transactionId: transactionId || null, 
+        customer_reference: myReference, 
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
       });
       
       return res.status(201).json({ success: true, id: bookingRef.id });
@@ -123,10 +160,25 @@ export default async function handler(req, res) {
       return res.json({ success: true, data: { id: doc.id, ...doc.data(), checkIn: doc.data().checkIn?.toDate().toISOString(), checkOut: doc.data().checkOut?.toDate().toISOString() } });
     }
 
+    // PUT /api/bookings/:id (Update)
+    if (slug1 && req.method === 'PUT') {
+       const bookingRef = db.collection('bookings').doc(slug1);
+       await bookingRef.update({ 
+         ...req.body, 
+         updatedAt: admin.firestore.FieldValue.serverTimestamp() 
+       });
+       return res.json({ success: true });
+    }
+
     // POST /api/bookings/:id/cancel
     if (slug1 && slug2 === 'cancel' && req.method === 'POST') {
       const bookingRef = db.collection('bookings').doc(slug1);
       await bookingRef.update({ status: 'cancelled', updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+      
+      // Free up the room if it was this booking occupying it
+      const bData = (await bookingRef.get()).data();
+      await db.collection('rooms').doc(bData.roomId).update({ status: 'Available', nextAvailable: null });
+
       return res.json({ success: true });
     }
 

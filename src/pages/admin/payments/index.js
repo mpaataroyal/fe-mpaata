@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Search, RefreshCw, Edit2, Zap, X, 
   User, Phone, CreditCard, Banknote, Smartphone, 
-  CheckCircle, AlertCircle, Clock, Loader2, ChevronDown 
+  CheckCircle, AlertCircle, Clock, Loader2, ChevronDown, Hash 
 } from 'lucide-react';
 import dayjs from 'dayjs';
 
@@ -49,6 +49,8 @@ const PaymentsPage = () => {
         phone: item.phone,
         amount: item.amount,
         method: item.provider || 'Unknown',
+        providerDetail: item.providerDetail, // e.g., 'MoMo Pay'
+        transactionId: item.transactionId,   // The manual reference entered
         date: item.date,
         status: item.status,
         raw: item 
@@ -108,6 +110,7 @@ const PaymentsPage = () => {
     if (!method) return <Banknote size={14} className="text-gray-500" />;
     const m = method.toLowerCase();
     if (m.includes('mobile')) return <Smartphone size={14} className="text-purple-500" />;
+    if (m.includes('merchant')) return <Hash size={14} className="text-blue-600" />; // Merchant Icon
     return <Banknote size={14} className="text-green-500" />;
   };
 
@@ -139,6 +142,7 @@ const PaymentsPage = () => {
   const filteredPayments = payments.filter(
     (item) =>
       (item.id && item.id.toLowerCase().includes(searchText.toLowerCase())) ||
+      (item.transactionId && item.transactionId.toLowerCase().includes(searchText.toLowerCase())) ||
       (item.guest && item.guest.toLowerCase().includes(searchText.toLowerCase())) ||
       (item.phone && item.phone.includes(searchText))
   );
@@ -154,12 +158,12 @@ const PaymentsPage = () => {
           </div>
           
           <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-            {/* Search Input Moved Here */}
+            {/* Search Input */}
             <div className="relative flex-1 sm:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
               <input 
                 type="text"
-                placeholder="Search Ref ID, Name..."
+                placeholder="Search Ref ID, Name, Transaction ID..."
                 className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-[2px] text-sm focus:outline-none focus:border-[#D4AF37] bg-white transition-colors"
                 value={searchText}
                 onChange={(e) => setSearchText(e.target.value)}
@@ -227,9 +231,17 @@ const PaymentsPage = () => {
                         UGX {Number(item.amount).toLocaleString()}
                       </td>
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-2 text-xs text-gray-600 capitalize">
-                          <MethodIcon method={item.method} />
-                          {item.method}
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-2 text-xs text-gray-600 capitalize">
+                            <MethodIcon method={item.method} />
+                            {item.method}
+                            {item.providerDetail && <span className="text-gray-400 text-[10px]">({item.providerDetail})</span>}
+                          </div>
+                          {item.transactionId && (
+                            <span className="text-[10px] text-[#0F2027] bg-gray-100 px-1.5 py-0.5 rounded w-fit font-mono flex items-center gap-1">
+                              <Hash size={8} /> {item.transactionId}
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="px-6 py-4 text-xs text-gray-500">
@@ -297,9 +309,15 @@ const PaymentsPage = () => {
                 {/* Info Card */}
                 <div className="bg-gray-50 p-4 rounded-[2px] border border-gray-100 mb-6 space-y-2 text-sm">
                    <div className="flex justify-between">
-                      <span className="text-gray-500">ID:</span>
+                      <span className="text-gray-500">System ID:</span>
                       <span className="font-mono font-medium text-[#0F2027]">{editingPayment.id.slice(0,16)}...</span>
                    </div>
+                   {editingPayment.transactionId && (
+                     <div className="flex justify-between">
+                        <span className="text-gray-500">Ref ID:</span>
+                        <span className="font-mono font-bold text-blue-600">{editingPayment.transactionId}</span>
+                     </div>
+                   )}
                    <div className="flex justify-between">
                       <span className="text-gray-500">Amount:</span>
                       <span className="font-bold text-[#0F2027]">UGX {Number(editingPayment.amount).toLocaleString()}</span>

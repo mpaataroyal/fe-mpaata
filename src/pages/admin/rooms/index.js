@@ -14,7 +14,6 @@ import {
   Power,
 } from 'lucide-react';
 import { onAuthStateChanged } from 'firebase/auth';
-// Changed from @/ aliases to relative paths to fix build errors
 import { auth } from '@/libs/firebase';
 import DashboardLayout from '@/layout';
 import { api } from '@/libs/apiAgent';
@@ -83,18 +82,73 @@ const RoomsPage = () => {
   const isAdminOrManager = ['admin', 'manager'].includes(userRole);
   const isReceptionist = userRole === 'receptionist';
 
-  // --- 1. Fetch Rooms ---
+  // --- 1. Fetch Rooms & Sync with Bookings ---
   const fetchRooms = async () => {
     setLoading(true);
     try {
-      const response = await api.rooms.getAll();
-      const rawData = response.data || response.rooms || response || [];
+      // Fetch both Rooms and Bookings to calculate real-time status
+      const [roomsRes, bookingsRes] = await Promise.all([
+        api.rooms.getAll(),
+        api.bookings.getAll()
+      ]);
 
-      const formattedRooms = Array.isArray(rawData)
-        ? rawData.map((room) => ({
-            key: room.id || room._id,
-            ...room,
-          }))
+      const rawRooms = roomsRes.data || roomsRes.rooms || roomsRes || [];
+      const rawBookings = bookingsRes.bookings || [];
+
+      // Create a map of currently occupied rooms based on bookings
+      const now = new Date();
+      // Normalize 'now' to start of day to compare dates easily
+      const todayStart = new Date(now);
+      todayStart.setHours(0, 0, 0, 0);
+
+      const occupiedRoomMap = {};
+
+      rawBookings.forEach(booking => {
+        const checkIn = new Date(booking.checkIn);
+        const checkOut = new Date(booking.checkOut);
+        
+        // Normalize checkIn to start of day
+        const checkInDay = new Date(checkIn);
+        checkInDay.setHours(0, 0, 0, 0);
+
+        // Logic Update: Room is occupied if:
+        // 1. Status is valid (confirmed/pending/checked-in)
+        // 2. AND (Currently inside the date range OR Booking starts Today)
+        const isStatusValid = ['confirmed', 'pending', 'checked-in'].includes(booking.status);
+        const isCurrentlyActive = now >= checkIn && now < checkOut;
+        const isStartingToday = checkInDay.getTime() === todayStart.getTime();
+
+        if (isStatusValid && (isCurrentlyActive || isStartingToday)) {
+          occupiedRoomMap[booking.roomId] = {
+            status: 'Booked', 
+            nextAvailable: booking.checkOut
+          };
+        }
+      });
+
+      // Merge Room Data with Booking Status
+      const formattedRooms = Array.isArray(rawRooms)
+        ? rawRooms.map((room) => {
+            const id = room.id || room._id;
+            const bookingInfo = occupiedRoomMap[id];
+
+            // If there is an active booking, override the DB status
+            // Unless the DB says "Maintenance", which usually takes priority
+            let displayStatus = room.status;
+            let displayNextAvailable = room.nextAvailable;
+
+            if (bookingInfo && room.status !== 'Maintenance') {
+               displayStatus = 'Booked'; 
+               displayNextAvailable = bookingInfo.nextAvailable;
+            }
+
+            return {
+              key: id,
+              ...room,
+              status: displayStatus,
+              nextAvailable: displayNextAvailable
+            };
+          })
         : [];
 
       setRooms(formattedRooms);

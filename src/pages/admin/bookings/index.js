@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Plus, Search, RefreshCw, X, Edit2, 
   User, Phone, Mail, Calendar, 
-  CreditCard, Banknote, Smartphone, Loader2, AlertTriangle, CheckCircle 
+  CreditCard, Banknote, Smartphone, Loader2, AlertTriangle, CheckCircle, Hash 
 } from 'lucide-react';
 import dayjs from 'dayjs';
 import isBetween from 'dayjs/plugin/isBetween';
@@ -12,12 +12,6 @@ import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
 
 dayjs.extend(isBetween);
 dayjs.extend(isSameOrAfter);
-
-// Adjusted imports based on typical Next.js src/ structure
-// Assuming:
-// src/pages/bookings.jsx
-// src/layout.jsx (or src/components/layout.jsx) -> trying ../layout first if it's in src
-// src/libs/apiAgent.js -> trying ../libs/apiAgent
 
 import DashboardLayout from '@/layout';
 import { api } from '@/libs/apiAgent'; 
@@ -36,6 +30,9 @@ const BookingsPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   
+  // Specific state for Merchant Sub-tabs
+  const [merchantType, setMerchantType] = useState('MoMo Pay'); 
+
   const [formData, setFormData] = useState({
     guestName: '',
     guestPhone: '+256',
@@ -46,12 +43,13 @@ const BookingsPage = () => {
     guests: 1,
     paymentMethod: 'Mobile Money',
     paymentPhone: '+256',
-    receivedBy: ''
+    receivedBy: '',
+    transactionId: '' 
   });
 
   const [roomWarning, setRoomWarning] = useState(null); 
 
-  // --- 1. Fetch Data ---
+  // --- 1. Fetch Data & Sync Logic ---
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -65,9 +63,52 @@ const BookingsPage = () => {
       const rawRooms = roomsRes.data || [];
       const rawUsers = usersRes.users || [];
 
-      // Ensure bookings map correctly
-      setBookings(rawBookings.map(b => ({ key: b.id, ...b })));
-      setRooms(rawRooms);
+      // Determine Room Occupancy from Bookings
+      const now = dayjs();
+      const occupiedRooms = new Set();
+
+      rawBookings.forEach(booking => {
+        const start = dayjs(booking.checkIn);
+        const end = dayjs(booking.checkOut);
+        
+        if (
+          ['confirmed', 'pending', 'checked-in'].includes(booking.status) &&
+          now.isSameOrAfter(start.subtract(1, 'hour')) && 
+          now.isBefore(end)
+        ) {
+          occupiedRooms.add(booking.roomId);
+        }
+      });
+
+      const processedRooms = rawRooms.map(room => {
+        const id = room.id || room._id;
+        if (occupiedRooms.has(id) && room.status !== 'Maintenance') {
+          return { ...room, status: 'Occupied' };
+        }
+        return room;
+      });
+
+      const roomMap = {};
+      processedRooms.forEach(r => {
+        const id = r.id || r._id;
+        roomMap[id] = r;
+      });
+
+      const formattedBookings = rawBookings.map(b => {
+        const room = roomMap[b.roomId];
+        const displayRoomName = room 
+          ? `${room.roomNumber} - ${room.type}` 
+          : (b.roomName || 'Unknown');
+
+        return { 
+          key: b.id, 
+          ...b,
+          roomName: displayRoomName 
+        };
+      });
+
+      setBookings(formattedBookings);
+      setRooms(processedRooms);
       
       const staffMembers = rawUsers.filter(u => 
         ['manager', 'receptionist', 'admin'].includes(u.role)
@@ -88,17 +129,14 @@ const BookingsPage = () => {
 
   // --- 2. Logic Helpers ---
 
-  // Handle Input Changes
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
 
-    // Sync payment phone if using mobile money
     if (name === 'guestPhone' && formData.paymentMethod === 'Mobile Money') {
       setFormData(prev => ({ ...prev, paymentPhone: value }));
     }
 
-    // Trigger room availability check
     if (name === 'roomId') {
       checkRoomAvailability(value);
     }
@@ -121,28 +159,15 @@ const BookingsPage = () => {
     if (currentBooking) {
       const availableTime = dayjs(currentBooking.checkOut);
       setRoomWarning(`Occupied. Available today at ${availableTime.format('HH:mm')}`);
-      
-      // Auto set start time
-      setFormData(prev => ({
-        ...prev,
-        checkIn: availableTime.format('YYYY-MM-DDTHH:mm'),
-        checkOut: availableTime.add(1, 'day').format('YYYY-MM-DDTHH:mm')
-      }));
-    } else {
-      // Default to next hour
-      const nextHour = dayjs().add(1, 'hour').startOf('hour');
-      setFormData(prev => ({
-        ...prev,
-        checkIn: nextHour.format('YYYY-MM-DDTHH:mm'),
-        checkOut: nextHour.add(1, 'day').format('YYYY-MM-DDTHH:mm')
-      }));
-    }
+    } 
   };
 
   // --- 3. CRUD Operations ---
 
   const openModal = (booking = null) => {
     setRoomWarning(null);
+    setMerchantType('MoMo Pay');
+    
     if (booking) {
       setEditingId(booking.id);
       setFormData({
@@ -155,7 +180,8 @@ const BookingsPage = () => {
         guests: booking.guests || 1,
         paymentMethod: booking.paymentMethod || 'Mobile Money',
         paymentPhone: booking.paymentPhone || booking.guestPhone,
-        receivedBy: booking.receivedBy || ''
+        receivedBy: booking.receivedBy || '',
+        transactionId: booking.transactionId || ''
       });
     } else {
       setEditingId(null);
@@ -169,7 +195,8 @@ const BookingsPage = () => {
         guests: 1,
         paymentMethod: 'Mobile Money',
         paymentPhone: '+256',
-        receivedBy: ''
+        receivedBy: '',
+        transactionId: ''
       });
     }
     setIsModalOpen(true);
@@ -179,7 +206,6 @@ const BookingsPage = () => {
     e.preventDefault();
     setSubmitting(true);
 
-    // Validation
     if (!formData.guestName || !formData.roomId || !formData.checkIn || !formData.checkOut) {
       alert("Please fill in all required fields.");
       setSubmitting(false);
@@ -189,7 +215,9 @@ const BookingsPage = () => {
     let finalStatus = 'pending';
     let finalPaymentStatus = 'unpaid';
 
-    if (formData.paymentMethod === 'Cash') {
+    const isManualPayment = ['Cash', 'Merchant Pay'].includes(formData.paymentMethod);
+
+    if (isManualPayment) {
        finalStatus = 'confirmed';
        finalPaymentStatus = 'paid';
     }
@@ -201,7 +229,9 @@ const BookingsPage = () => {
       status: finalStatus,
       paymentStatus: finalPaymentStatus,
       paymentPhone: formData.paymentMethod === 'Mobile Money' ? formData.paymentPhone : null,
-      receivedBy: formData.paymentMethod === 'Cash' ? formData.receivedBy : null,
+      receivedBy: isManualPayment ? formData.receivedBy : null,
+      transactionId: formData.paymentMethod === 'Merchant Pay' ? formData.transactionId : null,
+      providerDetail: formData.paymentMethod === 'Merchant Pay' ? merchantType : null
     };
 
     try {
@@ -210,6 +240,20 @@ const BookingsPage = () => {
       } else {
         await api.bookings.create(payload);
       }
+
+      // Force Update Room Status
+      const now = dayjs();
+      const start = dayjs(payload.checkIn);
+      const end = dayjs(payload.checkOut);
+
+      if (now.isSameOrAfter(start.subtract(1, 'hour')) && now.isBefore(end)) {
+         console.log("Forcing Room Status to Occupied...");
+         await api.rooms.update(payload.roomId, {
+           status: 'Occupied',
+           nextAvailable: payload.checkOut
+         });
+      }
+
       setIsModalOpen(false);
       fetchData();
     } catch (error) {
@@ -221,13 +265,12 @@ const BookingsPage = () => {
     }
   };
 
-  // --- Filtering ---
   const filteredBookings = bookings.filter(item =>
       item.guestName?.toLowerCase().includes(searchText.toLowerCase()) ||
-      item.id?.toLowerCase().includes(searchText.toLowerCase())
+      item.id?.toLowerCase().includes(searchText.toLowerCase()) ||
+      (item.roomName && item.roomName.toLowerCase().includes(searchText.toLowerCase()))
   );
 
-  // --- Component: Status Badge ---
   const StatusBadge = ({ status }) => {
     const colors = {
       confirmed: 'bg-green-100 text-green-700 border-green-200',
@@ -244,7 +287,7 @@ const BookingsPage = () => {
   return (
       <div className="p-6 md:p-12 font-sans text-gray-900">
         
-        {/* Header with Search and Actions */}
+        {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div>
             <h1 className="font-serif text-3xl text-[#0F2027] mb-1">Bookings</h1>
@@ -252,12 +295,11 @@ const BookingsPage = () => {
           </div>
           
           <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-            {/* Search Input Moved Here */}
             <div className="relative flex-1 sm:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
               <input 
                 type="text"
-                placeholder="Search guest name or ID..."
+                placeholder="Search guest, room or ID..."
                 className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-[2px] text-sm focus:outline-none focus:border-[#D4AF37] bg-white transition-colors"
                 value={searchText}
                 onChange={(e) => setSearchText(e.target.value)}
@@ -320,7 +362,7 @@ const BookingsPage = () => {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-sm font-medium text-gray-700">
-                        {booking.roomName || 'Unknown'}
+                        {booking.roomName}
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex flex-col text-xs gap-1">
@@ -332,11 +374,18 @@ const BookingsPage = () => {
                         <div className="flex flex-col gap-1">
                           <span className="font-bold text-sm">UGX {(booking.totalPrice || 0).toLocaleString()}</span>
                           <div className="flex items-center gap-2 text-xs text-gray-500">
-                             {booking.paymentMethod === 'Cash' ? <Banknote size={12} /> : <Smartphone size={12} />}
+                             {booking.paymentMethod === 'Cash' && <Banknote size={12} />}
+                             {booking.paymentMethod === 'Mobile Money' && <Smartphone size={12} />}
+                             {booking.paymentMethod === 'Merchant Pay' && <Hash size={12} />}
                              <span className={booking.paymentStatus === 'paid' ? 'text-green-600 font-bold' : 'text-yellow-600'}>
                                 {booking.paymentStatus ? booking.paymentStatus.toUpperCase() : 'UNPAID'}
                              </span>
                           </div>
+                          {booking.transactionId && (
+                            <span className="text-[10px] text-gray-400 font-mono bg-gray-50 px-1 rounded w-fit">
+                              ID: {booking.transactionId}
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="px-6 py-4">
@@ -366,7 +415,6 @@ const BookingsPage = () => {
         {isModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0F2027]/80 backdrop-blur-sm">
             <div className="bg-white w-full max-w-2xl rounded-[2px] shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
-              {/* Modal Header */}
               <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-[#fcfbf7]">
                 <h3 className="font-serif text-lg text-[#0F2027] font-bold">
                   {editingId ? 'Edit Booking' : 'New Reservation'}
@@ -376,10 +424,9 @@ const BookingsPage = () => {
                 </button>
               </div>
 
-              {/* Modal Body */}
               <form onSubmit={handleSubmit} className="p-6 space-y-6">
                 
-                {/* Section: Guest */}
+                {/* Guest Details */}
                 <div>
                   <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Guest Details</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -429,7 +476,7 @@ const BookingsPage = () => {
 
                 <div className="h-px bg-gray-100 w-full"></div>
 
-                {/* Section: Room & Dates */}
+                {/* Room & Dates */}
                 <div>
                   <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Room & Schedule</h4>
                   
@@ -444,8 +491,8 @@ const BookingsPage = () => {
                     >
                       <option value="">-- Choose a Room --</option>
                       {rooms.map(room => (
-                        <option key={room.id} value={room.id}>
-                          {room.roomNumber} - {room.type} (UGX {room.price?.toLocaleString()})
+                        <option key={room.id} value={room.id} disabled={room.status === 'Occupied' || room.status === 'Booked'}>
+                          {room.roomNumber} - {room.type} (UGX {room.price?.toLocaleString()}) {room.status === 'Occupied' ? '(Occupied)' : ''}
                         </option>
                       ))}
                     </select>
@@ -492,18 +539,17 @@ const BookingsPage = () => {
 
                 <div className="h-px bg-gray-100 w-full"></div>
 
-                {/* Section: Payment */}
+                {/* Payment Section */}
                 <div>
                   <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Payment Method</h4>
                   
-                  {/* Tabs */}
-                  <div className="flex bg-gray-100 p-1 rounded-[2px] mb-4">
-                    {['Mobile Money', 'Cash'].map((method) => (
+                  <div className="flex bg-gray-100 p-1 rounded-[2px] mb-4 overflow-x-auto">
+                    {['Mobile Money', 'Merchant Pay', 'Cash'].map((method) => (
                       <button
                         key={method}
                         type="button"
                         onClick={() => setFormData(prev => ({ ...prev, paymentMethod: method }))}
-                        className={`flex-1 py-2 text-xs font-medium rounded-[1px] transition-all ${
+                        className={`flex-1 py-2 px-2 text-xs font-medium rounded-[1px] transition-all whitespace-nowrap ${
                           formData.paymentMethod === method 
                             ? 'bg-white text-[#0F2027] shadow-sm' 
                             : 'text-gray-500 hover:text-gray-700'
@@ -514,8 +560,8 @@ const BookingsPage = () => {
                     ))}
                   </div>
 
-                  {/* Payment Logic Panel */}
                   <div className="bg-gray-50 p-4 rounded border border-gray-100">
+                    
                     {formData.paymentMethod === 'Mobile Money' && (
                       <div>
                         <div className="flex items-center gap-2 mb-3 text-blue-600">
@@ -534,6 +580,84 @@ const BookingsPage = () => {
                       </div>
                     )}
 
+                    {formData.paymentMethod === 'Merchant Pay' && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-4 text-green-600">
+                          <CheckCircle size={14} />
+                          <span className="text-xs">Payment verified by staff. Booking will be <b>Confirmed</b>.</span>
+                        </div>
+
+                        {/* Secondary Tabs for Merchant Provider */}
+                        <div className="flex border-b border-gray-200 mb-4">
+                           {['MoMo Pay', 'Airtel Pay'].map((type) => (
+                             <button
+                               key={type}
+                               type="button"
+                               onClick={() => setMerchantType(type)}
+                               className={`px-4 py-2 text-xs font-bold uppercase tracking-wider border-b-2 transition-colors ${
+                                 merchantType === type 
+                                  ? 'border-[#0F2027] text-[#0F2027]' 
+                                  : 'border-transparent text-gray-400 hover:text-gray-600'
+                               }`}
+                             >
+                               {type}
+                             </button>
+                           ))}
+                        </div>
+
+                        {/* Display Code based on Sub-tab */}
+                        <div className="mb-4 p-3 bg-white border border-dashed border-gray-300 rounded text-center">
+                          {merchantType === 'MoMo Pay' ? (
+                             <div className="flex flex-col gap-1">
+                               <p className="text-xs text-gray-400">MoMo Pay Code</p>
+                               <span className="text-lg font-bold text-[#0F2027]">92620395</span>
+                             </div>
+                          ) : (
+                             <div className="flex flex-col gap-1">
+                               <p className="text-xs text-gray-400">Airtel Pay Code</p>
+                               <span className="text-lg font-bold text-red-600">4392569</span>
+                             </div>
+                          )}
+                        </div>
+                        
+                        {/* Transaction ID Input - For Both MoMo and Airtel */}
+                        {(merchantType === 'MoMo Pay' || merchantType === 'Airtel Pay') && (
+                          <div className="space-y-1 mb-4">
+                            <label className="text-xs text-gray-500 font-bold">Transaction ID *</label>
+                            <div className="relative">
+                              <Hash className="absolute left-3 top-2.5 text-gray-400" size={16} />
+                              <input 
+                                required
+                                name="transactionId"
+                                value={formData.transactionId}
+                                onChange={handleInputChange}
+                                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-[2px] text-sm focus:outline-none focus:border-[#D4AF37]"
+                                placeholder={`Enter ${merchantType.split(' ')[0]} transaction ID...`} 
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="space-y-1">
+                          <label className="text-xs text-gray-500">Verified By (Staff) *</label>
+                          <select 
+                            name="receivedBy"
+                            value={formData.receivedBy}
+                            onChange={handleInputChange}
+                            required
+                            className="w-full px-3 py-2 border border-gray-200 rounded-[2px] text-sm bg-white"
+                          >
+                            <option value="">-- Select Staff --</option>
+                            {staff.map(user => (
+                              <option key={user.uid} value={user.uid}>
+                                {user.displayName || user.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    )}
+
                     {formData.paymentMethod === 'Cash' && (
                       <div>
                         <div className="flex items-center gap-2 mb-3 text-green-600">
@@ -541,7 +665,7 @@ const BookingsPage = () => {
                           <span className="text-xs">Booking will be <b>Confirmed</b> immediately.</span>
                         </div>
                         <div className="space-y-1">
-                          <label className="text-xs text-gray-500">Received By (Staff)</label>
+                          <label className="text-xs text-gray-500">Received By (Staff) *</label>
                           <select 
                             name="receivedBy"
                             value={formData.receivedBy}
@@ -562,7 +686,6 @@ const BookingsPage = () => {
                   </div>
                 </div>
 
-                {/* Footer Buttons */}
                 <div className="flex justify-end gap-3 pt-2">
                   <button 
                     type="button"
