@@ -8,7 +8,7 @@ if (!admin.apps.length) {
         clientEmail: process.env.NEXT_PUBLIC_FIREBASE_CLIENT_EMAIL,
         // Handle private key newlines in env vars
         privateKey: process.env.NEXT_PUBLIC_FIREBASE_PRIVATE_KEY
-          ? JSON.parse(process.env.NEXT_PUBLIC_FIREBASE_PRIVATE_KEY)
+          ? process.env.NEXT_PUBLIC_FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
           : undefined,
       }),
     });
