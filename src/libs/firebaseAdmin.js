@@ -55,6 +55,6 @@ const getAdmin = () => {
   return admin;
 };
 
-export const adminDb = admin.apps.length ? admin.firestore() : null;
-export const adminAuth = admin.apps.length ? admin.auth() : null;
+export const db = admin.apps.length ? admin.firestore() : null;
+export const auth = admin.apps.length ? admin.auth() : null;
 export { admin };
