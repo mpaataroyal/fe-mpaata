@@ -591,7 +591,7 @@ const RoomsPage = () => {
                   currency={displayCurrency}
                   amenities={room.amenities}
                   image={getRoomImage(room)}
-                  onClick={() => router.push(getDashboardLink())}
+                  onClick={() => router.push('/my')}
                 />
               );
             })}
