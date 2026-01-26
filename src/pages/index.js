@@ -786,7 +786,7 @@ const Footer = () => (
         </h5>
         <ul className="space-y-4 text-sm text-gray-500 font-sans">
           <li className="flex items-center gap-3">
-            <Phone size={14} className="text-[#D4AF37]" /> +256 (0) 700 123 456
+            <Phone size={14} className="text-[#D4AF37]" /> +256 (0) 769 720 059
           </li>
           <li className="flex items-center gap-3">
             <Mail size={14} className="text-[#D4AF37]" /> mpaataempire@gmail.com
