@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Head from 'next/head'; // ADDED FOR SEO
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import axios from 'axios'; 
@@ -30,6 +31,27 @@ import {
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from '@/libs/firebase';
 import { api } from '@/libs/apiAgent';
+
+// --- SEO: STRUCTURED DATA FOR GOOGLE MAPS ---
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "Hotel",
+  "name": "Mpaata Empire",
+  "description": "Hotel in Hoima, Uganda located near Bunyoro Stadium.",
+  "image": "https://mpaataempire.ug/hero_bg.webp",
+  "address": {
+    "@type": "PostalAddress",
+    "streetAddress": "Rusaka, Bujumbura Division",
+    "addressLocality": "Hoima",
+    "addressRegion": "Western Region",
+    "addressCountry": "UG"
+  },
+  "starRating": {
+    "@type": "Rating",
+    "ratingValue": "4"
+  },
+  "priceRange": "$$"
+};
 
 // --- GEOLOCATION UTILITY ---
 const getCountryCode = async () => {
@@ -167,8 +189,8 @@ const Navbar = () => {
     <nav
       className={`fixed w-full z-50 transition-all duration-500 ${
         scrolled
-          ? 'bg-white/95 backdrop-blur-md shadow-sm py-3 text-[#0F2027]' // Compact padding
-          : 'bg-transparent py-4 text-white' // Compact padding
+          ? 'bg-white/95 backdrop-blur-md shadow-sm py-3 text-[#0F2027]' 
+          : 'bg-transparent py-4 text-white'
       }`}
     >
       <div className="max-w-7xl mx-auto px-6 flex justify-between items-center">
@@ -176,8 +198,8 @@ const Navbar = () => {
         <Link href="/" className="flex items-center gap-2">
           <img
             src="/logo.webp"
-            alt="Mpaata Logo"
-            className="w-8 h-8 object-contain" // Smaller logo
+            alt="Mpaata Empire Hotel Hoima Logo"
+            className="w-8 h-8 object-contain"
           />
           <span
             className={`font-serif text-lg md:text-xl tracking-widest font-semibold uppercase ${
@@ -384,7 +406,7 @@ const Navbar = () => {
   );
 };
 
-// --- Hero Section (Shorter) ---
+// --- Hero Section (Optimized for SEO) ---
 const Hero = () => {
   const [checkIn, setCheckIn] = useState('');
   const [checkOut, setCheckOut] = useState('');
@@ -396,12 +418,11 @@ const Hero = () => {
   };
 
   return (
-    // Changed height from h-screen to h-[80vh] to hide bottom part and be more compact
     <div className="relative h-[80vh] min-h-[600px] flex flex-col justify-center items-center text-center text-white px-4">
       <div className="absolute inset-0 z-0">
         <img
           src={IMAGES.hero}
-          alt="Luxury Resort"
+          alt="Mpaata Empire - Hotel in Hoima, Uganda"
           className="w-full h-full object-cover brightness-[0.6]"
         />
         <div className="absolute inset-0 bg-[#0F2027]/30 mix-blend-overlay"></div>
@@ -409,15 +430,16 @@ const Hero = () => {
 
       <div className="relative z-10 max-w-4xl mx-auto animate-fade-in-up">
         <span className="block font-sans text-xs md:text-sm tracking-[0.3em] uppercase mb-4 text-[#D4AF37] font-semibold">
-          Welcome to the Empire
+          The Jewel of Bunyoro
         </span>
         <h1 className="font-serif text-5xl md:text-7xl lg:text-8xl mb-6 leading-tight">
           MPAATA <br />{' '}
           <span className="italic font-light text-[#F3E5AB]">Royal Suites</span>
         </h1>
+        {/* SEO OPTIMIZED TEXT */}
         <p className="font-sans text-sm md:text-base max-w-lg mx-auto leading-relaxed opacity-90 mb-10">
-          Experience the grandeur of royalty. A sanctuary of gold and sapphire
-          where luxury knows no bounds.
+          Experience luxury accommodation at the premier <strong>hotel in Hoima</strong>. 
+          Located minutes from <strong>Bunyoro Stadium</strong>, we offer a sanctuary of gold and sapphire.
         </p>
       </div>
 
@@ -495,12 +517,12 @@ const IntroSection = () => (
       <div className="space-y-8">
         <div className="w-16 h-[2px] bg-[#D4AF37]"></div>
         <h2 className="font-serif text-4xl md:text-5xl text-[#0F2027] leading-tight">
-          A Kingdom <br /> of Elegance
+          A Kingdom <br /> of Elegance in Bunyoro
         </h2>
         <p className="font-sans text-gray-600 leading-7 font-light text-lg">
           At MPAATA Empire, every guest is royalty. Our suites are designed with
           the finest satin textures and golden accents, blending seamless
-          opulence with modern comfort.
+          opulence with modern comfort in the heart of Hoima.
         </p>
         <div className="grid grid-cols-2 gap-8 pt-4">
           <div>
@@ -517,7 +539,7 @@ const IntroSection = () => (
         <div className="absolute -top-6 -right-6 w-full h-full border-2 border-[#D4AF37] z-0"></div>
         <img
           src={IMAGES.pool}
-          alt="Resort Pool"
+          alt="Resort Pool at Mpaata Empire Hoima"
           className="relative z-10 w-full h-[500px] object-cover grayscale-[20%] contrast-[1.1]"
         />
       </div>
@@ -536,7 +558,7 @@ const RoomCard = ({ image, title, price, type, onClick, currency }) => {
         <div className="absolute inset-0 bg-[#0F2027]/20 group-hover:bg-transparent transition-colors z-10"></div>
         <img
           src={image || IMAGES.roomPlaceholder}
-          alt={title}
+          alt={`${title} at Mpaata Empire`}
           className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
         />
         <div className="absolute bottom-6 left-6 z-20 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-500 transform translate-y-4 group-hover:translate-y-0">
@@ -571,7 +593,7 @@ const RoomsSection = ({ currency }) => {
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-16 max-w-2xl mx-auto">
           <span className="text-xs font-bold tracking-[0.2em] text-[#D4AF37] uppercase mb-4 block">
-            Accommodations
+            Accommodations in Hoima
           </span>
           <h2 className="font-serif text-4xl md:text-5xl text-[#0F2027] mb-6">
             Stay in Majesty
@@ -628,7 +650,7 @@ const Amenities = () => {
     },
     { icon: Utensils, title: 'Restaurant', desc: 'Fine Dining Experience' },
     { icon: Wifi, title: 'Wifi', desc: 'High-Speed Internet' },
-    { icon: Wine, title: 'Bar & Lounge', desc: 'Exquisite Cocktails' }, // Updated
+    { icon: Wine, title: 'Bar & Lounge', desc: 'Exquisite Cocktails' },
     {
       icon: Monitor,
       title: 'Conference Room',
@@ -664,7 +686,7 @@ const Amenities = () => {
   );
 };
 
-// --- Location Section ---
+// --- Location Section (Optimized for SEO) ---
 const LocationSection = () => {
   const coordinates = '1.428292,31.359560'; 
   const apiKey = 'AIzaSyBp6AeE01WY__gSB8CWZNE-NBRRAF1I9qI';
@@ -676,7 +698,7 @@ const LocationSection = () => {
         <div className="w-full h-full bg-[#e5e5e5] relative">
           <img
             src={staticMapUrl}
-            alt="Location Map of MPAATA Empire"
+            alt="Map showing Mpaata Empire Hotel near Bunyoro Stadium"
             className="absolute inset-0 w-full h-full object-cover opacity-60 grayscale"
             onError={(e) => {
               e.target.src = IMAGES.mapPlaceholder;
@@ -688,19 +710,21 @@ const LocationSection = () => {
 
       <div className="relative z-10 max-w-md w-full md:ml-24 bg-white/95 backdrop-blur-sm p-10 shadow-2xl rounded-[2px] animate-fade-in-up border-l-4 border-[#D4AF37]">
         <span className="text-xs font-bold tracking-[0.2em] text-[#D4AF37] uppercase mb-4 block">
-          Our Empire
+          Our Location
         </span>
         <h2 className="font-serif text-3xl text-[#0F2027] mb-6">
-          Getting Here
+          Heart of Bunyoro
         </h2>
 
         <div className="space-y-6">
           <div className="flex items-start gap-4">
             <MapPin className="text-[#D4AF37] mt-1 shrink-0" size={20} />
             <div>
-              <p className="text-[#0F2027] font-medium mb-1">MPAATA Empire</p>
+              <p className="text-[#0F2027] font-medium mb-1">Mpaata Empire Hotel</p>
               <p className="text-gray-500 text-sm leading-relaxed">
                 Hoima City, Bujumbura Division
+                <br />
+                Conveniently located near <strong>Bunyoro Stadium</strong>
                 <br />
                 Rusaka, Uganda
               </p>
@@ -843,6 +867,25 @@ export default function Home() {
 
   return (
     <div className="font-sans text-gray-900 bg-[#fcfbf7]">
+      {/* ADDED HEAD TAGS FOR SEO */}
+      <Head>
+        <title>Mpaata Empire | Hotel in Hoima near Bunyoro Stadium</title>
+        <meta name="description" content="Book your stay at Mpaata Empire. The premier hotel in Hoima, near Bunyoro Stadium. Experience luxury accommodation in the heart of Bunyoro, Uganda." />
+        <meta name="keywords" content="hotel in hoima, hotel in uganda, mpaata empire, hotels in bunyoro, bunyoro stadium, accommodation hoima" />
+        
+        {/* Open Graph / Social Media */}
+        <meta property="og:title" content="Mpaata Empire - Hotel in Hoima" />
+        <meta property="og:description" content="Stay at the best hotel in Bunyoro. Located near Bunyoro Stadium." />
+        <meta property="og:type" content="website" />
+        <meta property="og:image" content="https://mpaataempire.ug/hero_bg.webp" />
+        
+        {/* Structured Data JSON-LD */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      </Head>
+
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400&display=swap');
         html { scroll-behavior: smooth; }
@@ -858,7 +901,6 @@ export default function Home() {
       <Navbar />
       <Hero />
       <IntroSection />
-      {/* Pass currency to RoomsSection */}
       <RoomsSection currency={currency} />
       <Amenities />
       <LocationSection />
