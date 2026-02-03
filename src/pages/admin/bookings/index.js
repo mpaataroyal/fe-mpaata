@@ -13,8 +13,8 @@ import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
 dayjs.extend(isBetween);
 dayjs.extend(isSameOrAfter);
 
-import DashboardLayout from '@/layout';
-import { api } from '@/libs/apiAgent'; 
+import DashboardLayout from '../../../layout';
+import { api } from '../../../libs/apiAgent'; 
 
 const BookingsPage = () => {
   // --- State ---
