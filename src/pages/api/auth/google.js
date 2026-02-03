@@ -1,5 +1,5 @@
-import { admin, db } from '@/libs/firebaseAdmin';
-import { runMiddleware } from '@/libs/middleware';
+import { admin, db } from '../../../libs/firebaseAdmin';
+import { runMiddleware } from '../../../libs/middleware';
 import Cors from 'cors';
 
 const cors = Cors({ methods: ['POST', 'HEAD'] });

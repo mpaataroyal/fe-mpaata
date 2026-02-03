@@ -9,9 +9,9 @@ import {
 import dayjs from 'dayjs';
 
 // FIXED: Changed path from '../libs/apiAgent' to '../utils/apiAgent' based on initial project structure
-import { api } from '@/libs/apiAgent';
+import { api } from '../../../libs/apiAgent';
 // Note: Ensure src/layout.jsx exists for this import to work
-import DashboardLayout from '@/layout';
+import DashboardLayout from '../../../layout';
 
 const PAYMENT_STATUSES = ['success', 'pending', 'failed'];
 

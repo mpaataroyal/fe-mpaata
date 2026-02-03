@@ -10,8 +10,8 @@ import {
 } from 'lucide-react';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 
-import { auth, googleProvider } from '@/libs/firebase';
-import { api } from '@/libs/apiAgent';
+import { auth, googleProvider } from '../libs/firebase';
+import { api } from '../libs/apiAgent';
 
 // --- Login Screen Component ---
 const LoginScreen = ({ onLogin, isLoggingIn }) => {

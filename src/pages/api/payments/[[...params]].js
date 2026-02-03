@@ -1,5 +1,5 @@
-import { admin, db } from '@/libs/firebaseAdmin';
-import { runMiddleware, verifyToken, hasRole, formatPhoneNumber } from '@/libs/middleware';
+import { admin, db } from '../../../libs/firebaseAdmin';
+import { runMiddleware, verifyToken, hasRole, formatPhoneNumber } from '../../../libs/middleware';
 import Cors from 'cors';
 import axios from 'axios';
 

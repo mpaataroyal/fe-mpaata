@@ -1,4 +1,4 @@
-import { runMiddleware, verifyToken } from '@/libs/middleware';
+import { runMiddleware, verifyToken } from '../../../libs/middleware';
 import Cors from 'cors';
 
 const cors = Cors({ methods: ['POST', 'HEAD'] });

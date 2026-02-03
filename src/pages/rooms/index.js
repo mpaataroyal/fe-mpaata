@@ -20,8 +20,8 @@ import {
   Calendar,
 } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { auth } from '@/libs/firebase';
-import { api } from '@/libs/apiAgent';
+import { auth } from '../../libs/firebase';
+import { api } from '../../libs/apiAgent';
 
 /**
  * MPAATA EMPIRE - ROOMS PAGE

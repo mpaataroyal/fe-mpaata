@@ -12,8 +12,8 @@ import {
   PieChart, Pie, Cell, Legend, Area, AreaChart
 } from 'recharts';
 
-import DashboardLayout from '@/layout';
-import { api } from '@/libs/apiAgent';
+import DashboardLayout from '../../../layout';
+import { api } from '../../../libs/apiAgent';
 
 // --- THEME COLORS ---
 const THEME = {

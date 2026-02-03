@@ -15,9 +15,9 @@ import {
   DollarSign,
 } from 'lucide-react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from '@/libs/firebase';
-import DashboardLayout from '@/layout';
-import { api } from '@/libs/apiAgent';
+import { auth } from '../../../libs/firebase';
+import DashboardLayout from '../../../layout';
+import { api } from '../../../libs/apiAgent';
 import dayjs from 'dayjs';
 import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
 

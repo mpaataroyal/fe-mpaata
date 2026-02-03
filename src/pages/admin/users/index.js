@@ -9,8 +9,8 @@ import {
 // PRODUCTION IMPORTS
 // ==================================================================================
 // Changed from @/ aliases to relative paths to fix build errors
-import DashboardLayout from '@/layout';
-import { api } from '@/libs/apiAgent'; 
+import DashboardLayout from '../../../layout';
+import { api } from '../../../libs/apiAgent'; 
 
 // ==================================================================================
 // SUB-COMPONENTS

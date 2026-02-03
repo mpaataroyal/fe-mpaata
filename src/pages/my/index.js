@@ -32,8 +32,8 @@ import {
   Hash,
 } from 'lucide-react';
 import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
-import { auth, googleProvider } from '@/libs/firebase';
-import { api } from '@/libs/apiAgent';
+import { auth, googleProvider } from '../../libs/firebase';
+import { api } from '../../libs/apiAgent';
 
 /**
  * MPAATA EMPIRE - CLIENT DASHBOARD
